@@ -7,11 +7,27 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     RetainerAccess: {
-      address: "0x89e1115514141910f831B8A65d557b6BDd40f03b",
+      address: "0x8a053c6F1b70deDae84f4a16EB7F30dAD94Cc375",
       abi: [
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "beneficiary_",
+              type: "address",
+            },
+          ],
+          stateMutability: "payable",
+          type: "constructor",
+        },
         {
           inputs: [],
           name: "AlreadyActive",
+          type: "error",
+        },
+        {
+          inputs: [],
+          name: "Insolvent",
           type: "error",
         },
         {
@@ -22,6 +38,11 @@ const deployedContracts = {
         {
           inputs: [],
           name: "InvalidTerms",
+          type: "error",
+        },
+        {
+          inputs: [],
+          name: "NotBeneficiary",
           type: "error",
         },
         {
@@ -43,6 +64,27 @@ const deployedContracts = {
             },
           ],
           name: "ScheduleFailed",
+          type: "error",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "nowTs",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "expiresAt",
+              type: "uint256",
+            },
+          ],
+          name: "TooEarly",
+          type: "error",
+        },
+        {
+          inputs: [],
+          name: "TransferFailed",
           type: "error",
         },
         {
@@ -87,6 +129,31 @@ const deployedContracts = {
             },
           ],
           name: "Funded",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "from",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "amount",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "reserve",
+              type: "uint256",
+            },
+          ],
+          name: "GasReserveFunded",
           type: "event",
         },
         {
@@ -196,6 +263,51 @@ const deployedContracts = {
           type: "event",
         },
         {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "to",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "amount",
+              type: "uint256",
+            },
+          ],
+          name: "Withdrawn",
+          type: "event",
+        },
+        {
+          inputs: [],
+          name: "RENEWAL_COST_ESTIMATE",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "beneficiary",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
           inputs: [],
           name: "cancel",
           outputs: [],
@@ -207,6 +319,26 @@ const deployedContracts = {
           name: "fund",
           outputs: [],
           stateMutability: "payable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "fundGasReserve",
+          outputs: [],
+          stateMutability: "payable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "gasReserve",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
           type: "function",
         },
         {
@@ -229,6 +361,19 @@ const deployedContracts = {
           type: "function",
         },
         {
+          inputs: [],
+          name: "owed",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
           inputs: [
             {
               internalType: "address",
@@ -239,6 +384,19 @@ const deployedContracts = {
           name: "renew",
           outputs: [],
           stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "revenue",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
           type: "function",
         },
         {
@@ -303,10 +461,23 @@ const deployedContracts = {
           stateMutability: "view",
           type: "function",
         },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "amount",
+              type: "uint256",
+            },
+          ],
+          name: "withdraw",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 40217951,
-      hederaContractId: "0.0.10405786",
+      deployedOnBlock: 40218482,
+      hederaContractId: "0.0.10406002",
     },
   },
 } as const;

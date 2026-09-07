@@ -13,9 +13,14 @@ const deployRetainerAccess: DeployFunction = async function (hre: HardhatRuntime
   const { deployer } = await hre.getNamedAccounts();
   const { deploy } = hre.deployments;
 
+  // The beneficiary collects charged periods. Deployer by default.
+  // The deploy value seeds the gas reserve: the network charges the CONTRACT for each
+  // scheduled renewal (~1.53 HBAR measured on testnet), so a self-renewing contract has to
+  // hold gas for its own future. Seeded for ~4 renewals.
   const deployment = await deploy("RetainerAccess", {
     from: deployer,
-    args: [],
+    args: [deployer],
+    value: (8n * 10n ** 18n).toString(), // 8 HBAR, in weibar
     log: true,
     autoMine: true,
     gasLimit: "4000000",

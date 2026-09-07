@@ -1921,6 +1921,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@hiero-ledger/hiero-contracts@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@hiero-ledger/hiero-contracts@npm:0.2.0"
+  dependencies:
+    "@openzeppelin/contracts": ^5.3.0
+    "@openzeppelin/contracts-upgradeable": ^5.4.0
+  checksum: 1e2313722fa1cb579117755b196505a05caeae1dd5b3b0ebf3e3660b92e1489fd80e08b30702aa77ba2b8751feaeebef2df232766dfed90e07e69ce36b55917a
+  languageName: node
+  linkType: hard
+
 "@hiero-ledger/proto@npm:2.26.0-beta.3":
   version: 2.26.0-beta.3
   resolution: "@hiero-ledger/proto@npm:2.26.0-beta.3"
@@ -3081,10 +3091,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@openzeppelin/contracts-upgradeable@npm:^5.4.0":
+  version: 5.7.0
+  resolution: "@openzeppelin/contracts-upgradeable@npm:5.7.0"
+  peerDependencies:
+    "@openzeppelin/contracts": 5.7.0
+  checksum: b59466abe5ce07b61c76c4cd278a3283ac42ce71736848ea9bc37e7c776d57c669ab6b4a4ca246ad52e88470e51c1919de8ede38762b08d897fdd34e06c98b74
+  languageName: node
+  linkType: hard
+
 "@openzeppelin/contracts@npm:5.6.1":
   version: 5.6.1
   resolution: "@openzeppelin/contracts@npm:5.6.1"
   checksum: 4a1c1d3f7f59b821cc16661faf16d0d723c7e4d83cad2717c7c9f75c3006e724db28bd27c8a14bebe17c5d29838d12d8e9428675d2892b4e719105ecd0628d58
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/contracts@npm:^5.3.0":
+  version: 5.7.0
+  resolution: "@openzeppelin/contracts@npm:5.7.0"
+  checksum: 2b2cd3c504d5859732cb2b4b1ae7ad866ef004a7f7cd4296274c6af9def89007fd23d15a5484c8fa7502350998a6279771413cc40a5f9e209f55ffe3c917c076
   languageName: node
   linkType: hard
 
@@ -3770,6 +3796,7 @@ __metadata:
     "@ethersproject/abi": ~5.7.0
     "@ethersproject/providers": ~5.7.2
     "@hashgraph/system-contracts-forking": 0.1.2
+    "@hiero-ledger/hiero-contracts": ^0.2.0
     "@inquirer/password": ^4.0.2
     "@nomicfoundation/hardhat-chai-matchers": ~2.0.7
     "@nomicfoundation/hardhat-ethers": ~3.0.8

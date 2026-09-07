@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     RetainerAccess: {
-      address: "0x8a053c6F1b70deDae84f4a16EB7F30dAD94Cc375",
+      address: "0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A",
       abi: [
         {
           inputs: [
@@ -476,8 +476,8 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 40218482,
-      hederaContractId: "0.0.10406002",
+      deployedOnBlock: 40218724,
+      hederaContractId: "0.0.10406083",
     },
   },
 } as const;

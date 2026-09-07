@@ -42,6 +42,20 @@ describe("RetainerAccess", () => {
       expect(await c.gasReserve()).to.equal(before); // no scheduling was forced
     });
 
+    it("accepts a renewal that fires slightly EARLY, as the real scheduler does", async () => {
+      // Regression test. The Schedule Service was observed firing one second before
+      // expirySecond on testnet; a strict `>=` gate rejected it and self-renewal broke.
+      await c.connect(agent).subscribe(PRICE, PERIOD, { value: toWeibar(PRICE * 10n) });
+      await network.provider.send("evm_increaseTime", [PERIOD - 5]); // still 5s early
+      await network.provider.send("evm_mine");
+      await expect(c.connect(stranger).renew(agent.address)).to.emit(c, "Renewed");
+    });
+
+    it("still rejects a renewal far before expiry", async () => {
+      await c.connect(agent).subscribe(PRICE, PERIOD, { value: toWeibar(PRICE * 10n) });
+      await expect(c.connect(stranger).renew(agent.address)).to.be.revertedWithCustomError(c, "TooEarly");
+    });
+
     it("allows renewal once the window has expired", async () => {
       await c.connect(agent).subscribe(PRICE, PERIOD, { value: toWeibar(PRICE * 10n) });
       const before = (await c.subscriptionOf(agent.address))[2];

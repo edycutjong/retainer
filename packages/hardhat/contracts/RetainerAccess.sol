@@ -57,6 +57,20 @@ contract RetainerAccess is HederaScheduleService {
     uint256 private constant RENEWAL_GAS_LIMIT = 2_500_000;
 
     /**
+     * How early `renew()` may be called, in seconds.
+     *
+     * The Schedule Service does not execute at exactly `expirySecond` — observed on testnet
+     * firing one second early (scheduled 1788779925, executed 1788779924). A strict
+     * `block.timestamp >= expiresAt` gate therefore rejects the network's own scheduled call
+     * and the subscription silently fails to renew.
+     *
+     * The slack has to be large enough to absorb consensus timing and small enough to be
+     * worthless to an attacker: renewing a few seconds early neither grants free access nor
+     * meaningfully accelerates spending, since each renewal still charges a full period.
+     */
+    uint256 private constant RENEW_SLACK = 30;
+
+    /**
      * Gas reserve required per scheduled renewal, in tinybar. Measured at 1.5319 HBAR on
      * testnet; carries headroom for gas-price movement. An on-chain contract cannot know the
      * exact future fee, so this is an explicit, documented estimate rather than a guarantee.
@@ -154,7 +168,9 @@ contract RetainerAccess is HederaScheduleService {
     function renew(address agent) external {
         Subscription storage s = _subs[agent];
         if (!s.active) revert NotSubscribed();
-        if (block.timestamp < s.expiresAt) revert TooEarly(block.timestamp, s.expiresAt);
+        // `+ RENEW_SLACK` so the network's scheduled call is not rejected for firing a
+        // second early. Without it the griefing fix silently breaks self-renewal.
+        if (block.timestamp + RENEW_SLACK < s.expiresAt) revert TooEarly(block.timestamp, s.expiresAt);
 
         s.schedule = address(0);
 

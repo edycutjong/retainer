@@ -3,7 +3,12 @@
 ETHGlobal requires *"all spec files, prompts, and planning artifacts"* in the submission
 repository when a spec-driven workflow is used, so judges can see how the AI was directed.
 
-## What is in here
+## Current state
+
+**This directory is empty apart from this file.** Prompt records are added as each step of the
+build happens. Stating that plainly is better than implying a record exists that does not.
+
+## What goes in here
 
 The prompts that **shaped** the build — architecture decisions, spec generation, and each
 significant feature. One file per step, committed as the work happened rather than

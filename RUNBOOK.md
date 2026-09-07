@@ -297,7 +297,7 @@ running the stack.
 | `HEDERA_RPC_URL` | RPC for on-chain `FileRegistry` reads |
 | `FILE_REGISTRY_ADDRESS` | Optional EVM address override when not in `deployedContracts.ts` |
 | `FILE_REGISTRY_HEDERA_CONTRACT_ID` / `NEXT_PUBLIC_FILE_REGISTRY_HEDERA_CONTRACT_ID` | Optional native contract id override (`0.0.x`) for HashPack contract executes |
-| `FACILITATOR_URL` | x402 facilitator base URL (default `http://localhost:4020`) |
+| `FACILITATOR_URL` | x402 facilitator base URL (default `https://api.testnet.blocky402.com`) |
 | `X402_NETWORK` | Server-side x402 network id |
 | `NEXT_PUBLIC_X402_NETWORK` | Browser x402 client network (must match `X402_NETWORK`) |
 | `S3_ENDPOINT` | MinIO API URL (default `http://localhost:9000`) |
@@ -311,11 +311,15 @@ running the stack.
 Used when running the facilitator outside Docker (`cd facilitator && npm start`). Same
 `FACILITATOR_ACCOUNT_ID`, `FACILITATOR_PRIVATE_KEY`, and `X402_NETWORK` as the root `.env`.
 
-### Optional facilitator fallback
+### Facilitator
 
-The default is the **self-hosted** facilitator from `docker-compose.yml`. To use an external
-hosted facilitator instead (e.g. Blocky402 testnet), set `FACILITATOR_URL` in
-`packages/nextjs/.env` — this is not required for local development.
+The default is the **hosted Blocky402 testnet facilitator**
+(`https://api.testnet.blocky402.com`) — no API key or account required, and it supplies its
+own fee payer. Settlement goes through it.
+
+The self-hosted facilitator in `facilitator/` and `docker-compose.yml` is retained as a
+**local development fallback**. To use it instead, set `FACILITATOR_URL=http://localhost:4020`
+in `packages/nextjs/.env`.
 
 ---
 
@@ -344,61 +348,3 @@ hosted facilitator instead (e.g. Blocky402 testnet), set `FACILITATOR_URL` in
 
 ---
 
-## Iteration 5 — Packaging (`create-scaffold-hbar`)
-
-This template is published as git branch **`templates/x402-pay-per-use`** on the scaffold-hbar
-repo. The CLI downloads that branch via giget — there is no embedded copy in the CLI repo.
-
-### 5.1 What ships in the template
-
-| Piece | Location |
-| --- | --- |
-| Manifest (consumed then deleted by CLI) | `template.json` |
-| Contracts (Hardhat only) | `packages/hardhat/` (`FileRegistry.sol`) |
-| Resource server + UI | `packages/nextjs/` |
-| Self-hosted facilitator | `facilitator/` |
-| Local infra | `docker-compose.yml`, root `.env.example` |
-| Docs | `README.md`, `RUNBOOK.md` |
-
-Foundry is **not** included. `template.json` locks `solidityFramework` to `hardhat` only.
-
-### 5.2 Publish / update the template branch
-
-From a branch that contains the finished template (e.g. `feat/add-x402-resource-server`):
-
-```bash
-# Ensure template.json, package.json (no foundry workspace), and docs are committed.
-git push origin HEAD:templates/x402-pay-per-use
-```
-
-Or merge into `templates/x402-pay-per-use` and push. The branch name must be exactly
-`templates/x402-pay-per-use` so `npx create-scaffold-hbar@latest --template x402-pay-per-use`
-resolves to `hedera-dev/scaffold-hbar#templates/x402-pay-per-use`.
-
-### 5.3 Scaffold a fresh project
-
-```bash
-npx create-scaffold-hbar@latest --template x402-pay-per-use
-```
-
-Interactive mode lists the template automatically once the branch exists on GitHub (GitHub API
-`templates/*` refs). The CLI prints custom **outro steps** from `template.json` (env copy,
-`yarn infra:up`, Hardhat deploy, `yarn next:dev`).
-
-### 5.4 Optional CLI polish (`create-scaffold-hbar` repo)
-
-Not required for discovery. For a friendlier prompt label and offline fallback, add to
-`src/utils/consts.ts` in the `create-hbar` package:
-
-- `TEMPLATE_LABEL_OVERRIDES["x402-pay-per-use"] = "x402 Pay-Per-Use"`
-- `TEMPLATE_CAPABILITIES_FALLBACK["x402-pay-per-use"]` with `solidityFramework: ["hardhat"]`
-
-### 5.5 Post-scaffold smoke test
-
-After scaffolding into a clean directory:
-
-1. `yarn install`
-2. Copy `.env` files and set facilitator + WalletConnect credentials
-3. `yarn infra:up` → `curl localhost:4020/health`
-4. `yarn hardhat:deploy --network hederaTestnet`
-5. `yarn next:dev` → upload a file, pay with HashPack on a private listing

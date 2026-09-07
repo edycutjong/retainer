@@ -16,8 +16,18 @@ import { ExactHederaScheme } from "@x402/hedera/exact/server";
 /** x402 network identifier, e.g. `hedera:testnet`. */
 export const X402_NETWORK = (process.env.X402_NETWORK ?? "hedera:testnet") as Network;
 
-/** Base URL of the self-hosted Hedera facilitator. */
-export const FACILITATOR_URL = process.env.FACILITATOR_URL ?? "http://localhost:4020";
+/**
+ * Base URL of the x402 facilitator.
+ *
+ * Defaults to the hosted Blocky402 testnet facilitator. Settlement must go through
+ * Blocky402, so this is the default rather than an opt-in: cloning the repo and running
+ * it with no extra configuration uses the correct rail.
+ *
+ * Verified 2026-09-07: `GET /supported` advertises `hedera:testnet`, scheme `exact`,
+ * x402Version 2, and supplies its own fee payer, so no self-hosted facilitator is needed.
+ */
+export const FACILITATOR_URL =
+  process.env.FACILITATOR_URL ?? "https://api.testnet.blocky402.com";
 
 /** Asset id used by x402 to denote native HBAR; amounts are quoted in tinybars. */
 export const HBAR_ASSET = "0.0.0";

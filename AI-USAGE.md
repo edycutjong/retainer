@@ -14,8 +14,10 @@ disclosure, kept current as the project is built.
 This project uses a **spec-driven workflow**. Per ETHGlobal's rule, the artifacts that
 directed the AI are included in this repository:
 
-- `specs/` — the product spec, architecture, and build plan
-- `prompts/` — the prompts that shaped the build (see `prompts/README.md` for scope)
+- `specs/` — architecture and provenance today; the product spec and build plan land as the
+  build proceeds
+- `prompts/` — the prompts that shaped the build. **Currently empty apart from its README**;
+  files are added as each step happens rather than reconstructed at the end
 - commit history — the iterative fix loop, one commit per meaningful change
 
 ## Human contribution

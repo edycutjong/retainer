@@ -156,7 +156,7 @@ Verified contracts appear on [Hashscan (testnet)](https://hashscan.io/testnet).
 - **Docker** — required for `yarn infra:up`.
 - **No on-chain privacy** — payment amounts and accounts are visible on HashScan.
 - **Package churn** — pin `@x402/hedera` / `@x402/core` versions; APIs may change between releases.
-- **External facilitator** — optional: point `FACILITATOR_URL` at a hosted service instead of the local Docker facilitator.
+- **Facilitator** — settlement goes through the hosted **Blocky402** testnet facilitator (`https://api.testnet.blocky402.com`), which is the default. The bundled self-hosted facilitator in `facilitator/` is a local development fallback only.
 
 ## Project layout
 

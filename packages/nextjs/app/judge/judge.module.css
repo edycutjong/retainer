@@ -1,0 +1,178 @@
+/*
+ * Self-contained styling for /judge.
+ *
+ * Deliberately a CSS module with its own colour tokens rather than the app's theme utilities:
+ * this page has exactly one job — to still render correctly for someone triaging submissions —
+ * and it should not be able to break because the product's design system changed underneath it.
+ */
+
+.page {
+  --j-bg: #ffffff;
+  --j-fg: #14181f;
+  --j-muted: #5b6472;
+  --j-line: #e3e7ed;
+  --j-panel: #f6f8fa;
+  --j-accent: #0891b2;
+  --j-accent-fg: #ffffff;
+
+  max-width: 54rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 5rem;
+  color: var(--j-fg);
+  background: var(--j-bg);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+@media (prefers-color-scheme: dark) {
+  .page {
+    --j-bg: #0d1117;
+    --j-fg: #e6edf3;
+    --j-muted: #9198a1;
+    --j-line: #2a313c;
+    --j-panel: #161b22;
+    --j-accent: #22d3ee;
+    --j-accent-fg: #06202a;
+  }
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--j-muted);
+  margin: 0 0 0.75rem;
+}
+
+.claim {
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  line-height: 1.25;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  letter-spacing: -0.02em;
+}
+
+.lede {
+  color: var(--j-muted);
+  margin: 0 0 2rem;
+  max-width: 46rem;
+}
+
+.page h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 2.75rem 0 0.5rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--j-line);
+  letter-spacing: -0.01em;
+}
+
+.page h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.4rem;
+}
+
+.page p {
+  margin: 0 0 0.9rem;
+}
+
+.page a {
+  color: var(--j-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.page code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--j-panel);
+  border: 1px solid var(--j-line);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+.pre {
+  background: var(--j-panel);
+  border: 1px solid var(--j-line);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  margin: 0 0 1rem;
+  white-space: pre;
+}
+
+.pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+.steps {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+}
+
+.steps > li {
+  margin-bottom: 1.35rem;
+}
+
+.list {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+}
+
+.list > li {
+  margin-bottom: 0.5rem;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  margin: 0 0 1.25rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-bottom: 1px solid var(--j-line);
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--j-muted);
+  white-space: nowrap;
+  padding-right: 1.5rem;
+}
+
+.note {
+  background: var(--j-panel);
+  border-left: 3px solid var(--j-accent);
+  border-radius: 0 6px 6px 0;
+  padding: 0.85rem 1rem;
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+.note p:last-child {
+  margin-bottom: 0;
+}
+
+.footerNote {
+  color: var(--j-muted);
+  font-size: 0.85rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--j-line);
+}

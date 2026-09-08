@@ -80,8 +80,8 @@
 <text class="t-sans" x="44" y="138" font-size="20" fill="#A3ACC2">Your agent's access renews itself on-chain</text>
 <text class="t-sans" x="44" y="164" font-size="20" fill="#A3ACC2">at 3am, with nobody awake.</text>
 <text class="t-mono h-metric" x="44" y="206" font-size="16" fill="#34EEB6">1 signature  →  4 unattended renewals</text>
-<text class="t-mono" x="44" y="238" font-size="12.5" fill="#7C86A2">x402 · Blocky402 · HIP-1215 scheduleCall · Solidity · Next.js</text>
-<text class="t-mono" x="44" y="266" font-size="11.5" fill="#737D9A">Hedera testnet · contract 0.0.10415845 · retainer.edycu.dev</text>
+<text class="t-mono" x="44" y="238" font-size="12.5" fill="#8F9CC0">x402 · Blocky402 · HIP-1215 scheduleCall · Solidity · Next.js</text>
+<text class="t-mono" x="44" y="266" font-size="11.5" fill="#8F9CC0">Hedera testnet · contract 0.0.10415845 · retainer.edycu.dev</text>
 
 <!-- ===== right: the product story ===== -->
 <!-- the window (ring) -->
@@ -131,7 +131,7 @@
 <text class="t-mono" x="690" y="161" text-anchor="middle" font-size="27" font-weight="600" fill="#34EEB6" opacity="0" data-story="beat-3">60:00
   <animate attributeName="opacity" dur="8s" repeatCount="indefinite" keyTimes="0;0.46;0.49;0.84;0.87;1" values="0;0;1;1;0;0"/>
 </text>
-<text class="t-mono" x="690" y="180" text-anchor="middle" font-size="9" letter-spacing="1.4" fill="#7C86A2">UNTIL IT CLOSES</text>
+<text class="t-mono" x="690" y="180" text-anchor="middle" font-size="9" letter-spacing="1.4" fill="#8F9CC0">UNTIL IT CLOSES</text>
 <!-- captions under the ring -->
 <text class="t-mono" x="690" y="264" text-anchor="middle" font-size="12" fill="#A3ACC2" opacity="1">access open · renewal armed
   <animate attributeName="opacity" dur="8s" repeatCount="indefinite" keyTimes="0;0.22;0.26;0.86;0.90;1" values="1;1;0;0;1;1"/>
@@ -144,7 +144,7 @@
 </text>
 
 <!-- the schedule rail -->
-<text class="t-mono" x="820" y="52" font-size="10" letter-spacing="1.6" fill="#737D9A">HEDERA SCHEDULE SERVICE · 0x16b</text>
+<text class="t-mono" x="820" y="52" font-size="10" letter-spacing="1.6" fill="#8F9CC0">HEDERA SCHEDULE SERVICE · 0x16b</text>
 <line x1="820" y1="92" x2="1210" y2="92" stroke="#2A3350" stroke-width="2"/>
 <!-- pin 1: armed at 03:00:00 -->
 <text class="t-mono" x="1000" y="70" text-anchor="middle" font-size="11" fill="#A3ACC2">expiresAt · 03:00:00</text>
@@ -204,7 +204,7 @@
   <animate attributeName="opacity" dur="8s" repeatCount="indefinite" keyTimes="0;0.58;0.62;0.86;0.90;1" values="0;0;1;1;0;0"/>
 </text>
 <!-- the meter: the renewal refills it -->
-<text class="t-mono" x="820" y="270" font-size="11" fill="#737D9A">calls this period</text>
+<text class="t-mono" x="820" y="270" font-size="11" fill="#8F9CC0">calls this period</text>
 <rect x="940" y="262" width="40" height="8" rx="4" fill="#8259EF">
   <animate attributeName="fill" dur="8s" repeatCount="indefinite" keyTimes="0;0.42;0.46;0.70;0.86;0.90;1" values="#8259EF;#8259EF;#34EEB6;#8259EF;#8259EF;#8259EF;#8259EF"/>
 </rect>
@@ -214,7 +214,7 @@
 <rect x="1036" y="262" width="40" height="8" rx="4" fill="#252B45">
   <animate attributeName="fill" dur="8s" repeatCount="indefinite" keyTimes="0;0.42;0.46;0.70;0.86;0.90;1" values="#252B45;#252B45;#34EEB6;#8259EF;#8259EF;#252B45;#252B45"/>
 </rect>
-<text class="t-mono" x="1210" y="270" text-anchor="end" font-size="11" fill="#7C86A2" opacity="1">1 of 3 left
+<text class="t-mono" x="1210" y="270" text-anchor="end" font-size="11" fill="#8F9CC0" opacity="1">1 of 3 left
   <animate attributeName="opacity" dur="8s" repeatCount="indefinite" keyTimes="0;0.42;0.46;0.86;0.90;1" values="1;1;0;0;1;1"/>
 </text>
 <text class="t-mono" x="1210" y="270" text-anchor="end" font-size="11" fill="#34EEB6" opacity="0" data-story="beat-3">3 of 3 · refilled

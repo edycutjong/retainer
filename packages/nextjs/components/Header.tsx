@@ -4,7 +4,7 @@ import React, { useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpTrayIcon, Bars3Icon, ShoppingBagIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon, BugAntIcon } from "@heroicons/react/24/outline";
 import { WalletConnectButton } from "~~/components/scaffold-hbar";
 import { useOutsideClick } from "~~/hooks/scaffold-hbar";
 
@@ -20,14 +20,9 @@ export const menuLinks: HeaderMenuLink[] = [
     href: "/",
   },
   {
-    label: "Marketplace",
-    href: "/files",
-    icon: <ShoppingBagIcon className="h-4 w-4" />,
-  },
-  {
-    label: "Upload",
-    href: "/files/upload",
-    icon: <ArrowUpTrayIcon className="h-4 w-4" />,
+    label: "Contract",
+    href: "/debug",
+    icon: <BugAntIcon className="h-4 w-4" />,
   },
 ];
 

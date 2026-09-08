@@ -3531,6 +3531,111 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@retainer/hardhat@workspace:packages/hardhat":
+  version: 0.0.0-use.local
+  resolution: "@retainer/hardhat@workspace:packages/hardhat"
+  dependencies:
+    "@ethersproject/abi": ~5.7.0
+    "@ethersproject/providers": ~5.7.2
+    "@hashgraph/system-contracts-forking": 0.1.2
+    "@hiero-ledger/hiero-contracts": ^0.2.0
+    "@inquirer/password": ^4.0.2
+    "@nomicfoundation/hardhat-chai-matchers": ~2.0.7
+    "@nomicfoundation/hardhat-ethers": ~3.0.8
+    "@nomicfoundation/hardhat-network-helpers": ~1.0.11
+    "@nomicfoundation/hardhat-verify": ^2.0.0
+    "@openzeppelin/contracts": 5.6.1
+    "@typechain/ethers-v6": ~0.5.1
+    "@typechain/hardhat": ~9.1.0
+    "@types/eslint": ~9.6.1
+    "@types/mocha": ~10.0.10
+    "@types/prettier": ~3.0.0
+    "@types/qrcode": ~1.5.5
+    "@typescript-eslint/eslint-plugin": ~8.27.0
+    "@typescript-eslint/parser": ~8.27.0
+    chai: ~4.5.0
+    dotenv: ~16.4.5
+    envfile: ~7.1.0
+    eslint: ~9.23.0
+    eslint-config-prettier: ~10.1.1
+    eslint-plugin-prettier: ~5.2.4
+    ethers: ^6.14.0
+    hardhat: 2.22.19
+    hardhat-deploy: ^1.0.4
+    hardhat-deploy-ethers: ~0.4.2
+    hardhat-gas-reporter: ~2.2.1
+    prettier: ^3.5.3
+    prettier-plugin-solidity: ~1.4.1
+    qrcode: ~1.5.4
+    solidity-coverage: ~0.8.13
+    ts-node: ~10.9.1
+    typechain: ~8.3.2
+    typescript: ^5.8.2
+  languageName: unknown
+  linkType: soft
+
+"@retainer/nextjs@workspace:packages/nextjs":
+  version: 0.0.0-use.local
+  resolution: "@retainer/nextjs@workspace:packages/nextjs"
+  dependencies:
+    "@aws-sdk/client-s3": ^3.1062.0
+    "@aws-sdk/s3-request-presigner": ^3.1062.0
+    "@hashgraph/hedera-wallet-connect": ^2.1.3
+    "@heroicons/react": ^2.1.5
+    "@hiero-ledger/proto": ^2.25.0
+    "@hiero-ledger/sdk": ^2.80.0
+    "@react-native-async-storage/async-storage": ^2.2.0
+    "@reown/appkit": ^1.8.19
+    "@reown/appkit-controllers": ^1.8.19
+    "@reown/walletkit": ^1.5.4
+    "@scaffold-hbar-ui/components": ^2.0.0
+    "@scaffold-hbar-ui/debug-contracts": ^2.0.0
+    "@scaffold-hbar-ui/hooks": ^1.1.0
+    "@tailwindcss/postcss": latest
+    "@tanstack/react-query": ^5.59.15
+    "@trivago/prettier-plugin-sort-imports": ^4.3.0
+    "@types/node": ^18.19.50
+    "@types/react": ^19.0.7
+    "@walletconnect/ethereum-provider": ^2.18.0
+    "@walletconnect/modal": ^2.7.0
+    "@walletconnect/universal-provider": ^2.18.0
+    "@x402/core": ^2.14.0
+    "@x402/hedera": ^2.13.2
+    abitype: 1.0.6
+    accounts: ~0.12.0
+    assert: ^2.1.0
+    blo: ^1.2.0
+    buffer: ^6.0.3
+    crypto-browserify: ^3.12.1
+    daisyui: ^5.0.9
+    eslint: ^9.23.0
+    eslint-config-next: ^15.2.3
+    eslint-config-prettier: ^10.1.1
+    eslint-plugin-prettier: ^5.2.4
+    ethers: ^6.16.0
+    next: ^15.2.8
+    next-nprogress-bar: ^2.3.13
+    next-themes: ^0.4.6
+    postcss: ^8.4.45
+    prettier: ^3.5.3
+    process: ^0.11.10
+    qrcode.react: ^4.0.1
+    react: ^19.2.3
+    react-dom: ^19.2.3
+    react-hot-toast: ^2.4.0
+    stream-browserify: ^3.0.0
+    tailwindcss: ^4.1.3
+    tsx: ^4.22.4
+    type-fest: ^4.26.1
+    typescript: ^5.8.2
+    usehooks-ts: ^3.1.0
+    util: ^0.12.5
+    viem: 2.52.2
+    wagmi: ^3.6.0
+    zustand: ^5.0.0
+  languageName: unknown
+  linkType: soft
+
 "@rtsao/scc@npm:^1.1.0":
   version: 1.1.0
   resolution: "@rtsao/scc@npm:1.1.0"
@@ -3788,111 +3893,6 @@ __metadata:
   checksum: 27b259a136c664427641dd32ee3dc490553f3b5e92986accfa829d14063ebc69b191e92209ac9c40fbc367f74cfa17dc93b4c40981d666711fd57b4d51a82062
   languageName: node
   linkType: hard
-
-"@sh/hardhat@workspace:packages/hardhat":
-  version: 0.0.0-use.local
-  resolution: "@sh/hardhat@workspace:packages/hardhat"
-  dependencies:
-    "@ethersproject/abi": ~5.7.0
-    "@ethersproject/providers": ~5.7.2
-    "@hashgraph/system-contracts-forking": 0.1.2
-    "@hiero-ledger/hiero-contracts": ^0.2.0
-    "@inquirer/password": ^4.0.2
-    "@nomicfoundation/hardhat-chai-matchers": ~2.0.7
-    "@nomicfoundation/hardhat-ethers": ~3.0.8
-    "@nomicfoundation/hardhat-network-helpers": ~1.0.11
-    "@nomicfoundation/hardhat-verify": ^2.0.0
-    "@openzeppelin/contracts": 5.6.1
-    "@typechain/ethers-v6": ~0.5.1
-    "@typechain/hardhat": ~9.1.0
-    "@types/eslint": ~9.6.1
-    "@types/mocha": ~10.0.10
-    "@types/prettier": ~3.0.0
-    "@types/qrcode": ~1.5.5
-    "@typescript-eslint/eslint-plugin": ~8.27.0
-    "@typescript-eslint/parser": ~8.27.0
-    chai: ~4.5.0
-    dotenv: ~16.4.5
-    envfile: ~7.1.0
-    eslint: ~9.23.0
-    eslint-config-prettier: ~10.1.1
-    eslint-plugin-prettier: ~5.2.4
-    ethers: ^6.14.0
-    hardhat: 2.22.19
-    hardhat-deploy: ^1.0.4
-    hardhat-deploy-ethers: ~0.4.2
-    hardhat-gas-reporter: ~2.2.1
-    prettier: ^3.5.3
-    prettier-plugin-solidity: ~1.4.1
-    qrcode: ~1.5.4
-    solidity-coverage: ~0.8.13
-    ts-node: ~10.9.1
-    typechain: ~8.3.2
-    typescript: ^5.8.2
-  languageName: unknown
-  linkType: soft
-
-"@sh/nextjs@workspace:packages/nextjs":
-  version: 0.0.0-use.local
-  resolution: "@sh/nextjs@workspace:packages/nextjs"
-  dependencies:
-    "@aws-sdk/client-s3": ^3.1062.0
-    "@aws-sdk/s3-request-presigner": ^3.1062.0
-    "@hashgraph/hedera-wallet-connect": ^2.1.3
-    "@heroicons/react": ^2.1.5
-    "@hiero-ledger/proto": ^2.25.0
-    "@hiero-ledger/sdk": ^2.80.0
-    "@react-native-async-storage/async-storage": ^2.2.0
-    "@reown/appkit": ^1.8.19
-    "@reown/appkit-controllers": ^1.8.19
-    "@reown/walletkit": ^1.5.4
-    "@scaffold-hbar-ui/components": ^2.0.0
-    "@scaffold-hbar-ui/debug-contracts": ^2.0.0
-    "@scaffold-hbar-ui/hooks": ^1.1.0
-    "@tailwindcss/postcss": latest
-    "@tanstack/react-query": ^5.59.15
-    "@trivago/prettier-plugin-sort-imports": ^4.3.0
-    "@types/node": ^18.19.50
-    "@types/react": ^19.0.7
-    "@walletconnect/ethereum-provider": ^2.18.0
-    "@walletconnect/modal": ^2.7.0
-    "@walletconnect/universal-provider": ^2.18.0
-    "@x402/core": ^2.14.0
-    "@x402/hedera": ^2.13.2
-    abitype: 1.0.6
-    accounts: ~0.12.0
-    assert: ^2.1.0
-    blo: ^1.2.0
-    buffer: ^6.0.3
-    crypto-browserify: ^3.12.1
-    daisyui: ^5.0.9
-    eslint: ^9.23.0
-    eslint-config-next: ^15.2.3
-    eslint-config-prettier: ^10.1.1
-    eslint-plugin-prettier: ^5.2.4
-    ethers: ^6.16.0
-    next: ^15.2.8
-    next-nprogress-bar: ^2.3.13
-    next-themes: ^0.4.6
-    postcss: ^8.4.45
-    prettier: ^3.5.3
-    process: ^0.11.10
-    qrcode.react: ^4.0.1
-    react: ^19.2.3
-    react-dom: ^19.2.3
-    react-hot-toast: ^2.4.0
-    stream-browserify: ^3.0.0
-    tailwindcss: ^4.1.3
-    tsx: ^4.22.4
-    type-fest: ^4.26.1
-    typescript: ^5.8.2
-    usehooks-ts: ^3.1.0
-    util: ^0.12.5
-    viem: 2.52.2
-    wagmi: ^3.6.0
-    zustand: ^5.0.0
-  languageName: unknown
-  linkType: soft
 
 "@smithy/core@npm:^3.24.6":
   version: 3.24.6
@@ -13639,6 +13639,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"retainer@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "retainer@workspace:."
+  dependencies:
+    husky: ^9.1.6
+    lint-staged: ^15.2.10
+  languageName: unknown
+  linkType: soft
+
 "retry@npm:^0.13.1":
   version: 0.13.1
   resolution: "retry@npm:0.13.1"
@@ -13940,15 +13949,6 @@ __metadata:
   checksum: be18cbbf70e7d8097c97f713a2e76edf84e87299b40d085c6bf8b65314e994cc15e2e317727342fa6996e38e1f52c59720b53fe621e2eb593a6847bf0356db89
   languageName: node
   linkType: hard
-
-"sh@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "sh@workspace:."
-  dependencies:
-    husky: ^9.1.6
-    lint-staged: ^15.2.10
-  languageName: unknown
-  linkType: soft
 
 "sha.js@npm:^2.4.0, sha.js@npm:^2.4.12, sha.js@npm:^2.4.8":
   version: 2.4.12

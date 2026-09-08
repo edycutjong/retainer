@@ -6,7 +6,7 @@ import { encodeFunctionData } from "viem";
 import { chainIdToHederaNetwork, parseHederaAccountId } from "~~/utils/scaffold-hbar/hederaAccountId";
 import { resolveNativeContractId } from "~~/utils/scaffold-hbar/hederaContractId";
 
-/** Matches Hardhat deploy gasLimit for FileRegistry. */
+/** Matches the Hardhat deploy gasLimit. */
 const CONTRACT_EXECUTE_GAS = 3_000_000;
 
 export type NativeContractWriteResult = {

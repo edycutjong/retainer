@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { chainIdToHederaNetwork, getEvmAddressFromHederaAccountId } from "~~/utils/scaffold-hbar/hederaAccountId";
 
-/** Resolve the EVM alias for a connected native Hedera account (needed for FileRegistry owner checks). */
+/** Resolve the EVM alias for a connected native Hedera account (needed when a contract keys on the owner's EVM address). */
 export function useHederaEvmAddress(hederaAccountId: string | null | undefined, chainId?: number) {
   const [evmAddress, setEvmAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);

@@ -5,8 +5,9 @@ import "~~/styles/globals.css";
 import { getMetadata } from "~~/utils/scaffold-hbar/getMetadata";
 
 export const metadata = getMetadata({
-  title: "Scaffold-HBAR",
-  description: "Built with Scaffold-HBAR",
+  title: "Retainer — access that renews itself",
+  description:
+    "An x402-gated service on Hedera whose access renews itself on-chain via the Hedera Schedule Service. An agent pays once; the network keeps it alive.",
 });
 
 const ScaffoldHbarApp = ({ children }: { children: React.ReactNode }) => {

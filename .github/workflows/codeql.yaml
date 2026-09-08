@@ -1,0 +1,51 @@
+name: CodeQL
+
+# Static analysis of the two things an attacker can actually reach: the TypeScript that runs
+# the resource server, and the Actions workflows that hold the deploy credentials.
+#
+# The Solidity is NOT covered here — CodeQL has no Solidity extractor. The contract's security
+# properties are asserted by named tests instead; see .github/SECURITY.md, which lists each
+# claim next to the test that pins it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so a newly-published advisory is found on a frozen submission too.
+    - cron: "17 4 * * 1"
+
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["javascript-typescript", "actions"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      # No build step: both extractors read source directly. Running `yarn install` here would
+      # only pull node_modules into the analysis and slow it down.
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

@@ -1,0 +1,30 @@
+name: gitleaks
+
+# GitHub's own secret scanning only matches known provider patterns, and only on the commits
+# it sees pushed. This scans the FULL history for project-shaped secrets too — an ECDSA
+# operator key, a Hedera account id, a RETAINER_SERVER_KEY pasted into an example file.
+#
+# The rule this enforces: credentials live in ~/.config/retainer/, never in the tree. This
+# repo was public from commit 1, so "sanitise before the flip" was never available — the
+# history has to be clean continuously, and this is what checks that it still is.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: Scan full history
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the whole point is to scan the past, not just the tip
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

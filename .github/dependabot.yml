@@ -1,0 +1,31 @@
+version: 2
+
+# Grouped, monthly, and no majors — on purpose.
+#
+# This repo is a submitted hackathon artifact: the live deploy at retainer-plum.vercel.app and
+# the contract at 0.0.10415845 are what gets judged. Ungrouped weekly updates would open PRs
+# faster than they could be reviewed, and major bumps (next 15→16, ethers 6→7) are framework
+# migrations that break CI on a frozen tree rather than maintenance. Security alerts are a
+# separate channel and stay on regardless of what is listed here.
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]

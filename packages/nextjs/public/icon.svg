@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Retainer — the access window drains violet to zero and the network's own scheduled call refills it mint, nobody awake.">
+  <!-- The frozen moment: the violet window has drained to a sliver (0°→42°); the network's
+       scheduled call fired at the pin on the seam and the mint refill is closing the ring from
+       the far side (64°→360°). Gap = the instant. Colour tokens fall back to the brief's hexes
+       when rasterized standalone; a page that loads _tokens.css overrides them. -->
+  <defs>
+    <linearGradient id="r-armed" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="var(--primary, #8259EF)"/>
+      <stop offset="100%" stop-color="var(--primary-hi, #A78BFA)"/>
+    </linearGradient>
+    <linearGradient id="r-renewed" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--accent, #34EEB6)"/>
+      <stop offset="100%" stop-color="var(--accent-hi, #8AF8D6)"/>
+    </linearGradient>
+    <radialGradient id="r-ambient" cx="0.3" cy="0.25" r="0.75">
+      <stop offset="0%" stop-color="var(--primary, #8259EF)" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="var(--primary, #8259EF)" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="r-blur" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+  </defs>
+
+  <!-- plate: the tile that makes the mark self-sufficient on #fff and #0d1117 -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="var(--bg-plate, #12172A)"/>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#r-ambient)"/>
+  <rect x="0.5" y="0.5" width="511" height="511" rx="111.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.08"/>
+
+  <!-- track: the ghost of the window that just ran out -->
+  <circle cx="256" cy="256" r="152" fill="none" stroke="var(--primary, #8259EF)" stroke-opacity="0.16" stroke-width="48"/>
+
+  <!-- violet sliver: what remained of the old window (0° → 42°) -->
+  <path d="M256,104 A152,152 0 0 1 357.7,143.0" fill="none" stroke="url(#r-armed)" stroke-width="48"/>
+
+  <!-- mint refill: the network's own call closing the ring from the far side (64° → 360°) -->
+  <path d="M392.6,189.4 A152,152 0 1 1 256,104" fill="none" stroke="url(#r-renewed)" stroke-width="48"/>
+
+  <!-- spark at the refill's head -->
+  <circle cx="392.6" cy="189.4" r="34" fill="var(--accent, #34EEB6)" fill-opacity="0.55" filter="url(#r-blur)"/>
+  <circle cx="392.6" cy="189.4" r="12" fill="#F4F6FB"/>
+
+  <!-- the pin: the scheduled call, armed on the seam at twelve o'clock -->
+  <rect x="232" y="44" width="48" height="54" rx="14" fill="#F4F6FB"/>
+  <rect x="244" y="56" width="24" height="10" rx="5" fill="var(--accent, #34EEB6)"/>
+</svg>

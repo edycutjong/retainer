@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 
 const AGENT_COLD = "0x0000000000000000000000000000000000000abc";
 const AGENT_LIVE = "0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66";
-const BASE = "https://retainer-plum.vercel.app";
+const BASE = "https://retainer.edycu.dev";
 const CONTRACT_ID = "0.0.10415845";
 const CONTRACT_EVM = "0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931";
 const RENEWAL_TS = "1788827767.015718559";

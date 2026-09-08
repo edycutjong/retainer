@@ -2,7 +2,7 @@ version: 2
 
 # Grouped, monthly, and no majors — on purpose.
 #
-# This repo is a submitted hackathon artifact: the live deploy at retainer-plum.vercel.app and
+# This repo is a submitted hackathon artifact: the live deploy at retainer.edycu.dev and
 # the contract at 0.0.10415845 are what gets judged. Ungrouped weekly updates would open PRs
 # faster than they could be reviewed, and major bumps (next 15→16, ethers 6→7) are framework
 # migrations that break CI on a frozen tree rather than maintenance. Security alerts are a

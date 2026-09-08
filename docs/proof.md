@@ -312,7 +312,7 @@ curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1
 
 ## The live service, end to end
 
-The deployed resource server at <https://retainer-plum.vercel.app> running against the current
+The deployed resource server at <https://retainer.edycu.dev> running against the current
 contract `0.0.10415845`. This is `packages/nextjs/scripts/retainer-agent.ts` in full, unedited —
 the agent signs exactly one thing, the payment in step 2, and nothing afterwards.
 

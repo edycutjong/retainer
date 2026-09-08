@@ -6,7 +6,7 @@ An x402-gated metered data feed on Hedera whose access window is an on-chain sub
 the **Hedera Schedule Service** (HIP-1215, system contract `0x16b`) extends by itself. The agent
 signs exactly one thing — the first payment. Nothing signs anything again.
 
-This page is also live at **<https://retainer-plum.vercel.app/judge>**. Nothing on it needs an
+This page is also live at **<https://retainer.edycu.dev/judge>**. Nothing on it needs an
 account, a key, or a clone.
 
 ---
@@ -18,7 +18,7 @@ Everything below runs against the live deployment. No setup, no keys, no install
 **1 — watch a cold agent get charged.** Copy this into a terminal:
 
 ```bash
-curl -i "https://retainer-plum.vercel.app/api/retainer/access?agent=0x0000000000000000000000000000000000000abc"
+curl -i "https://retainer.edycu.dev/api/retainer/access?agent=0x0000000000000000000000000000000000000abc"
 ```
 
 You get **`402 Payment Required`** with a real x402 challenge — `scheme: exact`,
@@ -28,7 +28,7 @@ header, so an ordinary x402 client can parse it. That is the gate refusing servi
 **2 — read an agent that already paid.** This one has a live subscription:
 
 ```bash
-curl -s "https://retainer-plum.vercel.app/api/retainer/status?agent=0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66"
+curl -s "https://retainer.edycu.dev/api/retainer/status?agent=0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66"
 ```
 
 No 402. The window, the metered allowance, and the address of the *pending scheduled renewal*
@@ -42,7 +42,7 @@ come straight off the chain. Nothing here is served from a database.
   [`1788827767.015718559`](https://hashscan.io/testnet/transaction/1788827767.015718559).
   No transaction was sent to trigger it.
 
-**4 — open the live view.** <https://retainer-plum.vercel.app> — paste an agent address and
+**4 — open the live view.** <https://retainer.edycu.dev> — paste an agent address and
 watch the window count down and then jump back up on its own. Every number on it is a chain
 read via `/api/retainer/status`.
 
@@ -85,7 +85,7 @@ funded ECDSA Hedera testnet account in `~/.config/retainer/hedera.env`
 ```bash
 git clone https://github.com/edycutjong/retainer.git && cd retainer && yarn install
 cd packages/nextjs
-BASE_URL=https://retainer-plum.vercel.app yarn tsx scripts/retainer-agent.ts
+BASE_URL=https://retainer.edycu.dev yarn tsx scripts/retainer-agent.ts
 ```
 
 Cold request → 402 → pay once over x402 → the server forwards that settled payment into
@@ -136,8 +136,8 @@ contract cannot know a future network fee.
 
 | | |
 |---|---|
-| **Live app** | <https://retainer-plum.vercel.app> |
-| **This page, live** | <https://retainer-plum.vercel.app/judge> |
+| **Live app** | <https://retainer.edycu.dev> |
+| **This page, live** | <https://retainer.edycu.dev/judge> |
 | **Repository** | <https://github.com/edycutjong/retainer> |
 | **Contract on HashScan** | [`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845) |
 | **On-chain proof, with re-verify commands** | [`docs/proof.md`](docs/proof.md) |

@@ -78,7 +78,7 @@ test.describe("fail closed — an unpaid agent never receives the resource", () 
  * The live gate, against the deployed service. Opt-in, because a test that depends on a third
  * party's uptime should never be able to fail someone else's pull request.
  *
- *   E2E_LIVE_BASE_URL=https://retainer-plum.vercel.app yarn e2e
+ *   E2E_LIVE_BASE_URL=https://retainer.edycu.dev yarn e2e
  *
  * The production deploy workflow runs the equivalent check on every push and refuses to promote
  * a build whose gate has stopped answering, so this is a manual double-check, not the guard.

@@ -266,7 +266,8 @@ export async function meterCall(agent: Address): Promise<{ hash: Hex; remaining:
   if (!address) throw new RetainerNotDeployedError();
 
   const client = getClient();
-  // Simulate first so an exhausted quota surfaces as a clean revert rather than a burnt fee.
+  // The simulate is the enforcement: it runs `meter` against current chain state and reverts
+  // with QuotaExhausted if the allowance is spent, so nothing is served that should not be.
   const { request, result } = await client.simulateContract({
     account: getWallet().account,
     address,
@@ -275,7 +276,20 @@ export async function meterCall(agent: Address): Promise<{ hash: Hex; remaining:
     args: [agent],
   });
 
+  // Send the durable record, but do NOT wait for the receipt.
+  //
+  // Waiting made every metered request carry Hedera's finality — a few seconds — inside the
+  // serverless function, which timed out the request the demo depends on. The wait bought
+  // nothing: the next call re-simulates against chain state, so enforcement does not rely on
+  // this receipt having landed.
+  //
+  // The honest cost: requests arriving within the same few seconds can each simulate against
+  // the same pre-write state, so a burst can overshoot the allowance by roughly the number of
+  // requests in flight. Bounded and small, and the alternative was an endpoint that times out.
   const hash = await getWallet().writeContract(request);
-  await client.waitForTransactionReceipt({ hash, timeout: 30_000 });
+  void client
+    .waitForTransactionReceipt({ hash, timeout: 30_000 })
+    .catch(e => console.error(`[retainer] meter tx ${hash} not confirmed`, e));
+
   return { hash, remaining: Number(result) };
 }

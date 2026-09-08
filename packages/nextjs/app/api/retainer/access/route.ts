@@ -25,6 +25,10 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// The paid path settles through the facilitator and then waits for the subscription to be
+// mined, so this route legitimately outlives the default budget. The metered path does not
+// wait, but it still crosses the network twice.
+export const maxDuration = 60;
 
 /**
  * An x402-gated resource whose access renews itself.

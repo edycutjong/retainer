@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Retainer — the access window drains violet to zero and the network's own scheduled call refills it mint, nobody awake.">
+<!-- STORYBOARD (dur 6s — must equal this file's single master dur)
+  0-10%   steady state: full violet ring on its plate, the pin armed on the seam at twelve o'clock — the poster (rule 6)
+  10-28%  trigger:      the window drains from full to a sliver and turns expiring-amber as it nears zero            data-story="beat-2"
+  28-56%  mechanism:    The access window drains violet to zero and the network's own scheduled call refills it mint, nobody awake.   data-story="beat-3"
+  56-86%  resolution:   the closed ring holds; mint settles back to violet as the new window; the pin re-arms with a ripple   data-story="beat-4"
+  86-100% breathe + seam fade (rules 5-7): full violet ring at 100% = full violet ring at 0%
+-->
+<title>Retainer</title>
+<defs>
+  <linearGradient id="ia-armed" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#8259EF"/><stop offset="1" stop-color="#A78BFA"/>
+  </linearGradient>
+  <linearGradient id="ia-renewed" x1="1" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#34EEB6"/><stop offset="1" stop-color="#8AF8D6"/>
+  </linearGradient>
+  <radialGradient id="ia-ambient" cx="0.3" cy="0.25" r="0.75">
+    <stop offset="0" stop-color="#8259EF" stop-opacity="0.28"/><stop offset="1" stop-color="#8259EF" stop-opacity="0"/>
+  </radialGradient>
+  <filter id="ia-glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="16"/></filter>
+  <filter id="ia-spark" x="-120%" y="-120%" width="340%" height="340%"><feGaussianBlur stdDeviation="9"/></filter>
+</defs>
+<style>
+  @keyframes ia-breath { 0%, 44% { opacity: .16 } 62% { opacity: .55 } 84% { opacity: .3 } 100% { opacity: .16 } }
+  .ia-breath { animation: ia-breath 6s linear infinite; }
+  @keyframes ia-press { 0%, 27% { transform: translateY(0) } 30% { transform: translateY(7px) } 35%, 100% { transform: translateY(0) } }
+  .ia-press { animation: ia-press 6s cubic-bezier(.2,1.4,.4,1) infinite; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+
+<!-- plate: self-sufficient on #fff and #0d1117 -->
+<rect width="512" height="512" rx="112" fill="#12172A"/>
+<rect width="512" height="512" rx="112" fill="url(#ia-ambient)"/>
+<rect x="0.5" y="0.5" width="511" height="511" rx="111.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.08"/>
+
+<!-- glow breath: blurred duplicate of the ring; violet while armed, mint once renewed -->
+<circle class="ia-breath" cx="256" cy="256" r="152" fill="none" stroke="#8259EF" stroke-width="60" opacity=".16" filter="url(#ia-glow)">
+  <animate attributeName="stroke" dur="6s" repeatCount="indefinite" keyTimes="0;0.10;0.28;0.32;0.56;0.78;0.86;0.96;1" values="#8259EF;#8259EF;#8259EF;#34EEB6;#34EEB6;#34EEB6;#8259EF;#8259EF;#8259EF"/>
+</circle>
+
+<!-- track: the ghost of the window -->
+<circle cx="256" cy="256" r="152" fill="none" stroke="#8259EF" stroke-opacity="0.16" stroke-width="48"/>
+
+<!-- the window: full at the poster, drains from its head back toward the pin, turns amber at the end -->
+<circle cx="256" cy="256" r="152" fill="none" stroke="#8259EF" stroke-width="48" pathLength="100" stroke-dasharray="100" stroke-dashoffset="0" transform="rotate(-90 256 256)">
+  <animate attributeName="stroke-dashoffset" dur="6s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.10;0.28;0.32;0.56;0.78;0.86;0.96;1" values="0;0;88;88;88;88;0;0;0"/>
+  <animate attributeName="stroke" dur="6s" repeatCount="indefinite" keyTimes="0;0.10;0.22;0.28;0.56;0.78;0.86;0.96;1" values="#8259EF;#8259EF;#8259EF;#FFCF72;#FFCF72;#FFCF72;#8259EF;#8259EF;#8259EF"/>
+</circle>
+
+<!-- the refill: from the pin, the far way round, closing the ring back to the sliver — beat 3 -->
+<path d="M256,104 A152,152 0 1 0 256,408 A152,152 0 1 0 256,104" fill="none" stroke="url(#ia-renewed)" stroke-width="48" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" opacity="0" data-story="beat-3">
+  <animate attributeName="stroke-dashoffset" dur="6s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.10;0.28;0.32;0.56;0.86;0.88;0.96;1" values="100;100;100;100;12;12;100;100;100"/>
+  <animate attributeName="opacity" dur="6s" repeatCount="indefinite" keyTimes="0;0.10;0.28;0.32;0.56;0.78;0.86;0.96;1" values="0;0;0;1;1;1;0;0;0"/>
+</path>
+
+<!-- spark riding the refill's head — beat 3 -->
+<g opacity="0" data-story="beat-3">
+  <animate attributeName="opacity" dur="6s" repeatCount="indefinite" keyTimes="0;0.10;0.28;0.32;0.56;0.66;0.78;0.96;1" values="0;0;0;1;1;0;0;0;0"/>
+  <circle r="32" fill="#34EEB6" fill-opacity="0.6" filter="url(#ia-spark)">
+    <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.10;0.28;0.32;0.56;0.78;0.86;0.96;1" keyPoints="0;0;0;0;0.88;0.88;0.88;0.88;0.88" path="M256,104 A152,152 0 1 0 256,408 A152,152 0 1 0 256,104"/>
+  </circle>
+  <circle r="12" fill="#F4F6FB">
+    <animateMotion dur="6s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.10;0.28;0.32;0.56;0.78;0.86;0.96;1" keyPoints="0;0;0;0;0.88;0.88;0.88;0.88;0.88" path="M256,104 A152,152 0 1 0 256,408 A152,152 0 1 0 256,104"/>
+  </circle>
+</g>
+
+<!-- the pin fires: flash + ripple at the seam (beat 3), re-arm ripple (beat 4) -->
+<circle cx="256" cy="104" r="46" fill="#34EEB6" filter="url(#ia-spark)" opacity="0" data-story="beat-3">
+  <animate attributeName="opacity" dur="6s" repeatCount="indefinite" keyTimes="0;0.27;0.30;0.42;1" values="0;0;0.95;0;0"/>
+</circle>
+<circle cx="256" cy="104" r="10" fill="none" stroke="#34EEB6" stroke-width="6" opacity="0" data-story="beat-3">
+  <animate attributeName="r" dur="6s" repeatCount="indefinite" keyTimes="0;0.28;0.30;0.50;1" values="10;10;18;118;118"/>
+  <animate attributeName="opacity" dur="6s" repeatCount="indefinite" keyTimes="0;0.28;0.30;0.50;1" values="0;0;0.9;0;0"/>
+</circle>
+<circle cx="256" cy="104" r="10" fill="none" stroke="#8259EF" stroke-width="5" opacity="0" data-story="beat-4">
+  <animate attributeName="r" dur="6s" repeatCount="indefinite" keyTimes="0;0.80;0.82;0.95;1" values="10;10;18;96;96"/>
+  <animate attributeName="opacity" dur="6s" repeatCount="indefinite" keyTimes="0;0.80;0.82;0.95;1" values="0;0;0.8;0;0"/>
+</circle>
+
+<!-- the pin: the scheduled call, armed on the seam — brand layer, always visible; presses when it fires -->
+<g class="ia-press">
+  <rect x="232" y="44" width="48" height="54" rx="14" fill="#F4F6FB"/>
+  <rect x="244" y="56" width="24" height="10" rx="5" fill="#34EEB6"/>
+</g>
+</svg>

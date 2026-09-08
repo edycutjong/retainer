@@ -27,3 +27,16 @@ node_modules
 # cli
 dist
 .vercel
+
+# environment — never commit a real one; credentials live in ~/.config/retainer/
+.env.*
+!.env.example
+
+# playwright
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
+# lighthouse ci
+.lighthouseci

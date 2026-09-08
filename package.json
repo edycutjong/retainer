@@ -9,6 +9,11 @@
     ]
   },
   "scripts": {
+    "audit": "yarn npm audit --recursive --severity high",
+    "check-types": "yarn hardhat:check-types && yarn next:check-types",
+    "ci": "yarn hardhat:compile && yarn test && yarn lint && yarn check-types",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
     "format": "yarn next:format && yarn hardhat:format",
     "hardhat:account": "yarn workspace @retainer/hardhat account",
     "hardhat:account:generate": "yarn workspace @retainer/hardhat account:generate",
@@ -26,9 +31,11 @@
     "hardhat:lint-staged": "yarn workspace @retainer/hardhat lint-staged",
     "hardhat:test": "yarn workspace @retainer/hardhat test",
     "hardhat:verify": "yarn workspace @retainer/hardhat verify",
-    "hardhat:verify:testnet": "yarn workspace @retainer/hardhat verify:testnet",
     "hardhat:verify:mainnet": "yarn workspace @retainer/hardhat verify:mainnet",
+    "hardhat:verify:testnet": "yarn workspace @retainer/hardhat verify:testnet",
+    "lighthouse": "lhci autorun",
     "lint": "yarn next:lint && yarn hardhat:lint",
+    "lint-staged": "lint-staged",
     "next:build": "yarn workspace @retainer/nextjs build",
     "next:check-types": "yarn workspace @retainer/nextjs check-types",
     "next:dev": "yarn workspace @retainer/nextjs dev",
@@ -36,9 +43,11 @@
     "next:lint": "yarn workspace @retainer/nextjs lint",
     "next:serve": "yarn workspace @retainer/nextjs serve",
     "next:start": "yarn workspace @retainer/nextjs start",
+    "next:test": "yarn workspace @retainer/nextjs test",
     "postinstall": "husky",
     "precommit": "lint-staged",
-    "lint-staged": "lint-staged"
+    "security-scan": "yarn audit || true",
+    "test": "yarn hardhat:test && yarn next:test"
   },
   "packageManager": "yarn@3.2.3",
   "devDependencies": {

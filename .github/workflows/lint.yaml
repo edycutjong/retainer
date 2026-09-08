@@ -36,6 +36,12 @@ jobs:
       - name: Run Hardhat unit tests
         run: yarn hardhat:test
 
+      # The TypeScript half had no test of its own. This is the unit boundary suite: the
+      # tinybar/weibar conversion verified across 202,059 amounts rather than at examples,
+      # plus the regressions named for the money bugs that produced it.
+      - name: Run resource-server unit tests
+        run: yarn next:test
+
       - name: Run nextjs lint
         run: yarn next:lint --max-warnings=0
 

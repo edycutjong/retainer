@@ -5,6 +5,7 @@ import {
   getRetainerAddress,
   renewalsRemaining,
   subscriptionOf,
+  usageOf,
 } from "~~/services/retainer/server";
 
 export const runtime = "nodejs";
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const [sub, reserve] = await Promise.all([subscriptionOf(agent), renewalsRemaining()]);
+    const [sub, reserve, usage] = await Promise.all([subscriptionOf(agent), renewalsRemaining(), usageOf(agent)]);
     const now = Math.floor(Date.now() / 1000);
     const expiresAt = Number(sub.expiresAt);
 
@@ -55,6 +56,8 @@ export async function GET(req: Request) {
       nextRenewalSchedule: sub.schedule,
       // How many further renewals the seller's gas reserve can arm, for anyone.
       renewalsReserveCanArm: Number(reserve),
+      // Metered usage. The renewal that extends the window also resets `used` to zero.
+      usage,
       now,
     });
   } catch (error) {

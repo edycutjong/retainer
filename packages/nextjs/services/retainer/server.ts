@@ -2,6 +2,7 @@ import { type Address, type Hex, createPublicClient, createWalletClient, getAddr
 import { privateKeyToAccount } from "viem/accounts";
 import deployedContracts from "~~/contracts/deployedContracts";
 import scaffoldConfig from "~~/scaffold.config";
+import { tinybarToWeibar } from "~~/utils/x402";
 
 /**
  * Server-side reader for the on-chain `RetainerAccess` contract.
@@ -149,9 +150,6 @@ export async function subscriptionOf(agent: Address): Promise<Subscription> {
   };
 }
 
-/** 1 tinybar = 1e10 weibar. Storage is tinybar; `value` on the wire is weibar. */
-const WEIBAR_PER_TINYBAR = 10n ** 10n;
-
 export class ServerKeyMissingError extends Error {
   constructor() {
     super("RETAINER_SERVER_KEY is not configured; the server cannot forward settled payments on-chain");
@@ -193,7 +191,7 @@ export async function openSubscriptionFor(agent: Address, tinybar: bigint): Prom
     args: [agent],
     // `value` on the wire is weibar; the EVM will see tinybar. This is the ONLY place the
     // project converts — the contract itself never does. See docs/hedera-units.md.
-    value: tinybar * WEIBAR_PER_TINYBAR,
+    value: tinybarToWeibar(tinybar),
   });
 
   // Wait for it to be mined before telling the caller access is open.
@@ -219,7 +217,7 @@ export async function creditSubscription(agent: Address, tinybar: bigint): Promi
     abi: RETAINER_ABI,
     functionName: "creditFor",
     args: [agent],
-    value: tinybar * WEIBAR_PER_TINYBAR,
+    value: tinybarToWeibar(tinybar),
   });
 }
 

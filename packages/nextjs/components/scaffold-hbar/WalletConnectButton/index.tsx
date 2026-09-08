@@ -1,30 +1,36 @@
 "use client";
 
 import { useRef } from "react";
-import { hederaNamespace } from "@hashgraph/hedera-wallet-connect";
-import { useAppKit } from "@reown/appkit/react";
 import { useHederaWalletConnect } from "~~/services/web3/hederaWalletConnect";
 import { getParsedError, notification } from "~~/utils/scaffold-hbar";
 
-/** HashPack connect via Reown AppKit (native Hedera namespace only). */
+/**
+ * HashPack connect via Reown AppKit (native Hedera namespace only).
+ *
+ * This button does not import AppKit. It asks the context to connect, and the context loads the
+ * wallet SDK at that moment — so a visitor who never reaches for a wallet never pays for one.
+ * Hover and keyboard focus start the download early, so the click still feels immediate.
+ */
 export const WalletConnectButton = () => {
-  const { open } = useAppKit();
-  const { accountId, isConnected, isBusy, disconnectWallet } = useHederaWalletConnect();
+  const { accountId, isConnected, isBusy, isInitializing, connectWallet, disconnectWallet, prefetchWallet } =
+    useHederaWalletConnect();
   const menuRef = useRef<HTMLDetailsElement>(null);
 
   if (!isConnected) {
     return (
       <button
         className="btn btn-primary btn-sm"
+        onPointerEnter={prefetchWallet}
+        onFocus={prefetchWallet}
         onClick={() => {
-          void open({ view: "Connect", namespace: hederaNamespace }).catch(e => {
+          void connectWallet().catch(e => {
             notification.error(getParsedError(e));
           });
         }}
         disabled={isBusy}
         type="button"
       >
-        Connect HashPack
+        {isInitializing ? "Connecting..." : "Connect HashPack"}
       </button>
     );
   }

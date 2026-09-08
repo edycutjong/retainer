@@ -1,11 +1,22 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { getHederaAccountIdFromSession, getHederaProvider, hasHederaSession, initAppKit } from "./appKitHedera";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import type { AppKitApi, AppKitSnapshot } from "./appKitBridge";
 import type { HederaProvider } from "@hashgraph/hedera-wallet-connect";
-import { hederaNamespace } from "@hashgraph/hedera-wallet-connect";
-import { useAppKitAccount, useDisconnect } from "@reown/appkit/react";
-import { parseHederaAccountId } from "~~/utils/scaffold-hbar/hederaAccountId";
+
+/**
+ * The wallet context. It deliberately imports NOTHING from Reown AppKit or the Hedera SDK — only
+ * types, which erase at build time. All of that lives in `appKitBridge`, loaded on demand.
+ *
+ * Two rules this file exists to keep:
+ *   - `children` are never gated on wallet init. Gating them meant the server rendered a spinner
+ *     instead of the app, so the prerendered HTML had no <main>, no <header> and no <h1>, and the
+ *     LCP element did not exist until hydration had finished (measured: LCP 11.2 s on mobile).
+ *   - The wallet SDK is fetched at the first sign a visitor wants a wallet, not on every page load.
+ */
+
+const AppKitBridge = dynamic(() => import("./appKitBridge"), { ssr: false });
 
 type HederaWalletConnectContextValue = {
   provider: HederaProvider | null;
@@ -17,140 +28,95 @@ type HederaWalletConnectContextValue = {
   isConnected: boolean;
   isInitializing: boolean;
   isBusy: boolean;
+  /** Loads AppKit if needed, then opens the Connect view. Safe to call before anything is loaded. */
   connectWallet: () => Promise<void>;
   disconnectWallet: () => Promise<void>;
+  /** Starts fetching the wallet SDK without opening anything — for hover/focus intent. */
+  prefetchWallet: () => void;
+};
+
+const EMPTY_SNAPSHOT: AppKitSnapshot = {
+  provider: null,
+  accountId: null,
+  hasHederaSession: false,
+  isConnected: false,
 };
 
 const HederaWalletConnectContext = createContext<HederaWalletConnectContextValue | undefined>(undefined);
 
-let initPromise: Promise<HederaProvider> | null = null;
-
-/** Initialise AppKit + HederaProvider once for the page lifetime (AppKit is a module singleton). */
-function ensureInit(): Promise<HederaProvider> {
-  if (!initPromise) {
-    initPromise = initAppKit().then(() => getHederaProvider());
-  }
-  return initPromise;
-}
-
 export const HederaWalletConnectProvider = ({ children }: { children: React.ReactNode }) => {
-  const { disconnect } = useDisconnect();
-  const [provider, setProvider] = useState<HederaProvider | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
+  /** Mounting the bridge is what pulls the wallet SDK over the wire. */
+  const [armed, setArmed] = useState(false);
+  const [snapshot, setSnapshot] = useState<AppKitSnapshot>(EMPTY_SNAPSHOT);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
-  /** Bumps when the WC provider session or AppKit account state changes. */
-  const [sessionTick, setSessionTick] = useState(0);
-  const { address: appKitHederaAddress, isConnected: appKitHederaConnected } = useAppKitAccount({
-    namespace: hederaNamespace,
-  });
 
-  useEffect(() => {
-    let mounted = true;
-    void ensureInit()
-      .then(hp => {
-        if (mounted) setProvider(hp);
-      })
-      .catch(err => console.error("HederaWalletConnect init failed", err))
-      .finally(() => {
-        if (mounted) setIsInitializing(false);
-      });
-    return () => {
-      mounted = false;
-    };
+  const apiRef = useRef<AppKitApi | null>(null);
+  /** Set when connect was clicked before AppKit finished loading; drained once the API arrives. */
+  const openWhenReady = useRef(false);
+
+  const onApi = useCallback((api: AppKitApi) => {
+    apiRef.current = api;
+    if (openWhenReady.current) {
+      openWhenReady.current = false;
+      void api.openConnect().catch(err => console.error("HashPack connect failed", err));
+    }
   }, []);
 
-  useEffect(() => {
-    if (!provider) return;
-    const bump = () => setSessionTick(t => t + 1);
-    const providerWithEvents = provider as unknown as {
-      on?: (event: string, cb: () => void) => void;
-      off?: (event: string, cb: () => void) => void;
-    };
+  const onSnapshot = useCallback((next: AppKitSnapshot) => setSnapshot(next), []);
 
-    if (typeof providerWithEvents.on === "function") {
-      providerWithEvents.on("session_update", bump);
-      providerWithEvents.on("session_delete", bump);
-      providerWithEvents.on("connect", bump);
-      providerWithEvents.on("disconnect", bump);
+  const onSettled = useCallback(() => setIsInitializing(false), []);
+
+  const prefetchWallet = useCallback(() => {
+    setArmed(armedAlready => {
+      if (!armedAlready) setIsInitializing(true);
+      return true;
+    });
+  }, []);
+
+  const connectWallet = useCallback(async () => {
+    if (apiRef.current) {
+      await apiRef.current.openConnect();
+      return;
     }
-    return () => {
-      if (typeof providerWithEvents.off === "function") {
-        providerWithEvents.off("session_update", bump);
-        providerWithEvents.off("session_delete", bump);
-        providerWithEvents.off("connect", bump);
-        providerWithEvents.off("disconnect", bump);
-      }
-    };
-  }, [provider]);
-
-  useEffect(() => {
-    setSessionTick(t => t + 1);
-  }, [appKitHederaConnected, appKitHederaAddress]);
+    openWhenReady.current = true;
+    prefetchWallet();
+  }, [prefetchWallet]);
 
   const disconnectWallet = useCallback(async () => {
-    if (isBusy) return;
+    if (isBusy || !apiRef.current) return;
     setIsBusy(true);
     try {
-      await disconnect({ namespace: hederaNamespace });
+      await apiRef.current.disconnect();
     } catch (error) {
       console.error("HashPack disconnect failed", error);
     } finally {
-      setSessionTick(t => t + 1);
       setIsBusy(false);
     }
-  }, [isBusy, disconnect]);
-
-  const connectWallet = useCallback(async () => Promise.resolve(), []);
-
-  const { hederaAccountId, hederaSessionReady, isConnected } = useMemo(() => {
-    void sessionTick;
-
-    const fromProvider = getHederaAccountIdFromSession(provider);
-    const fromAppKit = appKitHederaConnected && appKitHederaAddress ? parseHederaAccountId(appKitHederaAddress) : null;
-    const accountId = fromProvider ?? fromAppKit;
-    const sessionReady = hasHederaSession(provider);
-    const connected = Boolean(appKitHederaConnected && accountId);
-
-    return {
-      hederaAccountId: accountId,
-      hederaSessionReady: sessionReady,
-      isConnected: connected,
-    };
-  }, [sessionTick, provider, appKitHederaConnected, appKitHederaAddress]);
+  }, [isBusy]);
 
   const value = useMemo<HederaWalletConnectContextValue>(
     () => ({
-      provider,
-      hederaAccountId,
-      accountId: hederaAccountId,
-      hasHederaSession: hederaSessionReady,
-      isConnected,
+      provider: snapshot.provider,
+      hederaAccountId: snapshot.accountId,
+      accountId: snapshot.accountId,
+      hasHederaSession: snapshot.hasHederaSession,
+      isConnected: snapshot.isConnected,
       isInitializing,
       isBusy,
       connectWallet,
       disconnectWallet,
+      prefetchWallet,
     }),
-    [
-      provider,
-      hederaAccountId,
-      hederaSessionReady,
-      isConnected,
-      isInitializing,
-      isBusy,
-      connectWallet,
-      disconnectWallet,
-    ],
+    [snapshot, isInitializing, isBusy, connectWallet, disconnectWallet, prefetchWallet],
   );
 
-  if (isInitializing) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <span className="loading loading-spinner loading-md text-primary" />
-      </div>
-    );
-  }
-
-  return <HederaWalletConnectContext.Provider value={value}>{children}</HederaWalletConnectContext.Provider>;
+  return (
+    <HederaWalletConnectContext.Provider value={value}>
+      {armed ? <AppKitBridge onApi={onApi} onSnapshot={onSnapshot} onSettled={onSettled} /> : null}
+      {children}
+    </HederaWalletConnectContext.Provider>
+  );
 };
 
 export const useHederaWalletConnect = () => {

@@ -74,7 +74,7 @@ const Home: NextPage = () => {
               <span className="rt-pill">Hedera testnet</span>
               <span className="rt-pill">HIP-1215 · 0x16b</span>
             </div>
-            <h1 id="claim" className="rt-h1 rt-enter rt-enter--1">
+            <h1 id="claim" className="rt-h1 rt-enter rt-enter--lcp">
               Your agent&rsquo;s access <span className="rt-renewed-text">renews itself</span>{" "}
               <span className="whitespace-nowrap">on-chain</span> at 3am, with nobody awake.
             </h1>

@@ -139,9 +139,9 @@ purely on-chain. They join in exactly one place: `subscribeFor()`.
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/architecture-light.svg">
-    <img alt="Retainer architecture: a payment rail that settles once through Blocky402 on Hedera, joined by subscribeFor to a renewal rail where the Hedera Schedule Service calls renew on the contract unattended." src="docs/architecture-light.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/architecture-light.png">
+    <img alt="Retainer architecture: a payment rail that settles once through Blocky402 on Hedera, joined by subscribeFor to a renewal rail where the Hedera Schedule Service calls renew on the contract unattended." src="docs/architecture-light.png" width="100%">
   </picture>
 </p>
 

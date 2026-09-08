@@ -298,7 +298,7 @@ curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1
 - It does not prove the **current** source behaves this way to exhaustion on testnet. This run
   is one revision behind the source; the current deployment named at the top has completed one
   unattended renewal and a cancel, not a full lapse cycle. The current source is covered by
-  40 tests in `packages/hardhat/test/RetainerAccess.test.ts` (`yarn hardhat:test`), against
+  46 tests in `packages/hardhat/test/RetainerAccess.test.ts` (`yarn hardhat:test`), against
   the mock.
 - It does not prove the fee stays at 1.54896 HBAR. Hedera gas price moves; the measurement is
   a point in time, which is why `RENEWAL_COST_ESTIMATE` is a documented estimate with headroom

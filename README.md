@@ -16,6 +16,7 @@ Hedera Schedule Service extends by itself.</p>
 [![Live Demo](https://img.shields.io/badge/🚀_Live-Demo-06b6d4?style=for-the-badge)](https://retainer-plum.vercel.app)
 [![Live Contract](https://img.shields.io/badge/⛓️_HashScan-0.0.10415845-8b5cf6?style=for-the-badge)](https://hashscan.io/testnet/contract/0.0.10415845)
 [![Built for ETHOnline 2026](https://img.shields.io/badge/ETHGlobal-ETHOnline_2026-1f6feb?style=for-the-badge)](https://ethglobal.com/events/ethonline2026)
+[![For judges](https://img.shields.io/badge/⚖️_For-Judges-f59e0b?style=for-the-badge)](https://retainer-plum.vercel.app/judge)
 
 <br/>
 
@@ -32,7 +33,9 @@ Hedera Schedule Service extends by itself.</p>
 
 ---
 
-**Live:** <https://retainer-plum.vercel.app> · try the gate yourself:
+**Live:** <https://retainer-plum.vercel.app> · **judging this?** the 30-second read is at
+<https://retainer-plum.vercel.app/judge> ([`JUDGE.md`](JUDGE.md)) — claim, four commands that
+prove it against Hedera, the measured costs, and the limitations. Or try the gate yourself:
 
 ```bash
 # a cold agent is charged
@@ -435,6 +438,8 @@ yarn next:dev
   `/api/retainer/status`; nothing is simulated.
 - `http://localhost:3000/api/retainer/access?agent=0x…` — the gate.
 - `http://localhost:3000/api/retainer/status?agent=0x…` — read-only state, safe to poll.
+- `http://localhost:3000/judge` — the judge-facing summary. Static, no auth, no chain call, so
+  it renders even when the network does not.
 
 ### 4. Run the agent end to end
 
@@ -467,16 +472,70 @@ regression guard for the tinybar/weibar bug.
 yarn hardhat:test
 ```
 
-**40 passing** in `packages/hardhat/test/RetainerAccess.test.ts`, grouped by the thing each
+**46 passing** in `packages/hardhat/test/RetainerAccess.test.ts`, grouped by the thing each
 group protects: tinybar/weibar unit handling, the seller — not the subscriber — setting the
 price, x402 settlement crediting the on-chain subscription, the `renew()` time gate that
 closes the griefing vector, what the contract actually asks the scheduler to do, separation of
-the three money pots, lapsing loudly in every failure case, and the access gate itself.
-`MockScheduleService.sol` stands in for the `0x16b` system contract locally — which is exactly
-why local gas numbers understate the real cost, as measured above.
+the three money pots, metering, lapsing loudly in every failure case, and the access gate
+itself. `MockScheduleService.sol` stands in for the `0x16b` system contract locally — which is
+exactly why local gas numbers understate the real cost, as measured above.
 
-`.github/workflows/lint.yaml` runs the same suite on every push and pull request to `main`,
-alongside the contract compile, both lint passes and the TypeScript type check.
+Test names describe the defect they pin rather than the function they call, so the list reads
+as a changelog of the bugs this build actually had — *"accepts a renewal that fires slightly
+EARLY, as the real scheduler does"* is the testnet observation above, turned into a guard.
+Six of them are permission-boundary tests: the beneficiary cannot reach subscriber money or
+the gas reserve, a stranger cannot loop `renew()`, and `subscribeFor` cannot spend an agent's
+balance without funding a period. Each claim is listed next to its test in
+[`.github/SECURITY.md`](.github/SECURITY.md).
+
+```bash
+yarn next:test        # 10 unit tests, the resource server's arithmetic
+```
+
+The sharpest edge in this project — Hedera's weibar/tinybar boundary, whose failure mode is a
+transfer wrong by ten orders of magnitude that still returns a successful receipt — cannot be
+guarded by examples, because examples are exactly what a 1e10 error survives. So the
+conversion is verified across a range instead: **202,059 distinct amounts** against three
+invariants each (606,177 assertions) — every value from 0 to 100,000, every value across the
+1 HBAR seam, every decade edge up to 1e18 including the 1e10 factor itself, and 100,000
+randomised uint64 amounts. The oracle is the `UnitProbe` measurement from testnet, not a
+restatement of the implementation. See [`docs/hedera-units.md`](docs/hedera-units.md).
+
+```bash
+yarn e2e              # 44 Playwright checks, no credentials required
+```
+
+The E2E suite asserts the one thing a paywall must never do. With no seller account
+configured, `/api/retainer/access` is sent a cold agent and the answer **must not be 200** —
+402, 500, 502 and 503 are all correct refusals; a served feed is not. That the suite needs no
+credentials is a property of the *tests*, not of the product: Retainer has no offline or mock
+mode, and the paid path is proven against the live network in
+[`docs/proof.md`](docs/proof.md). It found two real layout bugs on `/judge` the first time it
+ran, both at 375px, both invisible from a desktop.
+
+### The harness
+
+| Layer | Tool | Where |
+|---|---|---|
+| Contract tests | Hardhat + Mocha, 46 passing | `.github/workflows/lint.yaml` |
+| Unit tests | Vitest + fast-check, 10 passing, 202,059 amounts | `.github/workflows/lint.yaml` |
+| E2E | Playwright, 44 checks, desktop + mobile | `.github/workflows/e2e.yaml` |
+| Types + lint | `tsc --noEmit` and ESLint, both workspaces | `.github/workflows/lint.yaml` |
+| SAST | CodeQL — TypeScript **and** the Actions workflows | `.github/workflows/codeql.yaml` |
+| Secrets | gitleaks over the **full history**, `fetch-depth: 0` | `.github/workflows/gitleaks.yaml` |
+| Dependencies | Dependabot, grouped and monthly, majors ignored | `.github/dependabot.yml` |
+| Performance | Lighthouse CI + a bundle-size tripwire | `.github/workflows/e2e.yaml` |
+| Deploy gate | verify → Vercel → **live 402 smoke test** | `.github/workflows/deploy.yaml` |
+
+The deploy workflow is the one worth a second look: it refuses to promote a build whose live
+gate has stopped answering `402` for `hedera:testnet`. A green deploy badge here means the
+product still works, not that Vercel accepted an upload.
+
+CodeQL deliberately does not claim to cover the Solidity — there is no CodeQL extractor for
+it, and a green checkmark that means nothing is worse than an absent one. The contract's
+security properties are asserted by named tests instead.
+
+`yarn ci` runs the compile, both test suites, both lints and both type checks in one command.
 
 ## 📁 Project Structure
 
@@ -487,7 +546,7 @@ packages/hardhat/
   contracts/test/UnitProbe.sol          the tinybar/weibar measurement, run on testnet
   deploy/01_deploy_retainer_access.ts   deploys, then funds the gas reserve
   scripts/proveRenewal.ts               subscribe, send nothing, watch it renew
-  test/RetainerAccess.test.ts           40 tests
+  test/RetainerAccess.test.ts           46 tests
 
 packages/nextjs/
   app/api/retainer/access/route.ts      the x402 gate: 402, settle, subscribeFor
@@ -495,12 +554,18 @@ packages/nextjs/
   app/page.tsx                          the live view
   services/retainer/server.ts           contract reads + forwarding settled payments
   services/x402/server.ts               x402 resource server, Blocky402 facilitator
+  app/judge/page.tsx                    /judge — the 30-second read for one reader
+  test/units.property.test.ts           the unit boundary, 202,059 amounts
   scripts/retainer-agent.ts             the whole flow as an agent runs it
 
+e2e/                                    Playwright: the gate must fail closed
+JUDGE.md                                what /judge says, for whoever arrives from GitHub
 specs/                                  architecture and provenance
 prompts/                                the prompts that directed the build
 docs/proof.md                           every on-chain artifact, and how to re-verify it
 docs/gas-economics.md                   what an unattended renewal actually costs
+docs/hedera-units.md                    the weibar/tinybar trap, and the probe that settled it
+.github/SECURITY.md                     each security claim, next to the test that pins it
 ```
 
 ## 📄 License

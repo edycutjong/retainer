@@ -7,9 +7,13 @@
  * the landing page footer, /judge, and the pitch deck's stamp script. The README badge does not
  * read it at all; it asks GitHub for the latest release, so it cannot drift.
  *
- *   yarn release:patch   1.0.0 -> 1.0.1
+ *   yarn release         read the level out of the commits (Angular convention) — the default
+ *   yarn release:patch   1.0.0 -> 1.0.1                       — deliberate override
  *   yarn release:minor   1.0.0 -> 1.1.0
  *   yarn release:major   1.0.0 -> 2.0.0
+ *
+ * CI does the same thing on every push to main; this is the local equivalent, useful for seeing
+ * what a push is about to cut before making it.
  *
  * Pushing the tag is deliberately a separate, explicit step — see the printed instructions.
  */
@@ -23,9 +27,9 @@ const MANIFESTS = ["package.json", "packages/nextjs/package.json", "packages/har
 
 const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 
-const kind = process.argv[2];
-if (!["patch", "minor", "major"].includes(kind)) {
-  console.error("usage: release.mjs <patch|minor|major>");
+const kind = process.argv[2] ?? "auto";
+if (!["auto", "patch", "minor", "major"].includes(kind)) {
+  console.error("usage: release.mjs [auto|patch|minor|major]");
   process.exit(1);
 }
 
@@ -42,7 +46,21 @@ if ([major, minor, patch].some(Number.isNaN)) {
   process.exit(1);
 }
 
-const next = { major: `${major + 1}.0.0`, minor: `${major}.${minor + 1}.0`, patch: `${major}.${minor}.${patch + 1}` }[kind];
+let next;
+if (kind === "auto") {
+  // The same calculator CI uses, so a local dry run and a push agree by construction.
+  next = execFileSync("node", [join(root, "scripts", "next-version.mjs"), "--explain"], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+  }).trim();
+  if (next === "none") {
+    console.log("\n  Nothing releasable since the last tag. No release cut.\n");
+    process.exit(0);
+  }
+} else {
+  next = { major: `${major + 1}.0.0`, minor: `${major}.${minor + 1}.0`, patch: `${major}.${minor}.${patch + 1}` }[kind];
+}
 const tag = `v${next}`;
 
 if (git("tag", "-l", tag)) {

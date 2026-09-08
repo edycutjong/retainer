@@ -46,9 +46,11 @@
     "next:test": "yarn workspace @retainer/nextjs test",
     "postinstall": "husky",
     "precommit": "lint-staged",
+    "release": "node scripts/release.mjs auto",
     "release:major": "node scripts/release.mjs major",
     "release:minor": "node scripts/release.mjs minor",
     "release:patch": "node scripts/release.mjs patch",
+    "release:next": "node scripts/next-version.mjs --explain",
     "security-scan": "yarn audit || true",
     "test": "yarn hardhat:test && yarn next:test"
   },

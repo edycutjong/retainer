@@ -16,6 +16,11 @@ import { defineConfig, devices } from "@playwright/test";
  * The single most important assertion in here is in `gate.spec.ts`: with no seller account
  * configured, the gate must never answer 200. It fails closed or it is not a gate.
  */
+// The port is configurable because a dev server is often already holding 3000 during a build
+// session, and an e2e run that silently tests someone else's process is worse than no run.
+const port = Number(process.env.E2E_PORT ?? 3000);
+const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${port}`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -24,7 +29,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -36,9 +41,9 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: "yarn next:build && yarn next:serve",
-        url: "http://localhost:3000",
-        reuseExistingServer: !process.env.CI,
+        command: `yarn next:build && yarn workspace @retainer/nextjs serve --port ${port}`,
+        url: baseURL,
+        reuseExistingServer: false,
         timeout: 300_000,
       },
 });

@@ -51,9 +51,14 @@ test.describe("fail closed — an unpaid agent never receives the resource", () 
     expect(response.status()).not.toBe(200);
     expect([402, 500, 502, 503]).toContain(response.status());
 
+    // `resource` in a 402 body is the x402 *description* of what is for sale, not the data
+    // itself. The thing that must never appear is the served feed — a quoted rate — or an
+    // access grant, or an on-chain metering record.
     const body = await response.json();
-    expect(body.resource).toBeUndefined();
     expect(body.access).not.toBe("granted");
+    expect(body.metering).toBeUndefined();
+    expect(body.resource?.rate).toBeUndefined();
+    expect(body.resource?.pair).toBeUndefined();
   });
 });
 

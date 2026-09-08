@@ -87,7 +87,7 @@ const links: [string, string][] = [
 
 export default function JudgePage() {
   return (
-    <main className={styles.page}>
+    <div className={styles.page} data-testid="judge">
       <p className={styles.eyebrow}>Retainer · for judges · 30 seconds</p>
 
       <h1 className={styles.claim}>Your agent&rsquo;s access renews itself on-chain at 3am, with nobody awake.</h1>
@@ -272,6 +272,6 @@ yarn next:test        # 10 unit tests, 202,059 amounts across the unit boundary`
         This page mirrors <code>JUDGE.md</code> in the repository root. Built for ETHGlobal ETHOnline 2026, targeting
         Hedera&rsquo;s AI &amp; Agentic Payments bounty.
       </p>
-    </main>
+    </div>
   );
 }

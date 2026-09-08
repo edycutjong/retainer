@@ -1,15 +1,9 @@
-/* Fonts first: an @import that follows any other rule is ignored by the browser. */
-@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap");
-/* Styrene A Web – Hedera brand font (fallback: Montserrat per brand.hedera.com) */
-@font-face {
-  font-family: "Styrene A Web";
-  src:
-    url("https://db.onlinewebfonts.com/t/819f612977ba7ba86c14b739b908c73f.woff2") format("woff2"),
-    url("https://db.onlinewebfonts.com/t/819f612977ba7ba86c14b739b908c73f.woff") format("woff");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
+/* Display + UI face: Montserrat, self-hosted at build by next/font (see app/layout.tsx) and exposed as
+   --font-montserrat with size-adjusted fallback metrics, so nothing reflows when it arrives. The
+   template's remote "Styrene A Web" @font-face (a single 400 weight fetched from a third-party font
+   host with display:swap) is gone: it arrived late, re-flowed the /judge headline for 0.27 CLS, and
+   put a judged page on a font-rip host. Montserrat is the brand's own documented fallback, and the
+   face every other surface in this submission already uses. */
 @import "tailwindcss";
 
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
@@ -17,7 +11,7 @@
 @theme {
   --shadow-center: 0 0 12px -2px rgb(0 0 0 / 0.05);
   --animate-pulse-fast: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  --font-sans: "Styrene A Web", "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-montserrat), "Montserrat", ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jbm), "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --color-hedera-ultraviolet: #8259ef;
   --color-hedera-azure: #0031ff;
@@ -109,7 +103,7 @@
 
   body {
     min-height: 100vh;
-    font-family: "Styrene A Web", "Montserrat", ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-montserrat), "Montserrat", ui-sans-serif, system-ui, sans-serif;
   }
 
   h1,
@@ -1053,14 +1047,18 @@
 .rt-ledger td .rt-mono {
   color: var(--rt-text-hi);
 }
-.rt-ledger td .rt-link {
-  white-space: nowrap; /* a consensus timestamp is one number; the table scrolls instead */
+.rt-ledger td .rt-link,
+.rt-ledger td.rt-mono {
+  white-space: nowrap; /* a consensus timestamp or a fee is one number; the table scrolls instead */
 }
 .rt-ledger .is-renewed td:first-child {
   box-shadow: inset 3px 0 0 var(--rt-renewed);
 }
 .rt-ledger .is-lapsed td:first-child {
   box-shadow: inset 3px 0 0 var(--rt-expiring);
+}
+.rt-ledger .is-reverted td:first-child {
+  box-shadow: inset 3px 0 0 var(--rt-error);
 }
 .rt-ledger .is-current td {
   border-top: 1px solid var(--rt-line-strong);
@@ -1184,6 +1182,11 @@
   font-size: 1.0625rem;
   letter-spacing: -0.02em;
   line-height: 1;
+  transition: color 160ms;
+}
+/* The mark + wordmark is a link home; it answers a hover like every other link does. */
+.rt-brand:hover .rt-brand__name {
+  color: var(--rt-armed-ink);
 }
 .rt-brand__tag {
   display: none;

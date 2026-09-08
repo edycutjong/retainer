@@ -1,4 +1,4 @@
-import { JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono, Montserrat } from "next/font/google";
 import "@scaffold-hbar-ui/components/styles.css";
 import { ScaffoldHbarAppWithProviders } from "~~/components/ScaffoldHbarAppWithProviders";
 import { ThemeProvider } from "~~/components/ThemeProvider";
@@ -15,6 +15,15 @@ const mono = JetBrains_Mono({
   variable: "--font-jbm",
 });
 
+// The display and UI face, served the same way and for the same reason. It replaces the template's
+// remote Styrene A Web @font-face, which arrived late and moved the /judge headline (0.27 CLS).
+const sans = Montserrat({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-montserrat",
+});
+
 export const metadata = getMetadata({
   title: "Retainer — access that renews itself",
   description:
@@ -23,7 +32,7 @@ export const metadata = getMetadata({
 
 const ScaffoldHbarApp = ({ children }: { children: React.ReactNode }) => {
   return (
-    <html lang="en" className={mono.variable} suppressHydrationWarning>
+    <html lang="en" className={`${mono.variable} ${sans.variable}`} suppressHydrationWarning>
       <body>
         <ThemeProvider enableSystem>
           <ScaffoldHbarAppWithProviders>{children}</ScaffoldHbarAppWithProviders>

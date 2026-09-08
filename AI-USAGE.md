@@ -33,7 +33,7 @@ the AI are in this repository:
 
 ## Per-file attribution — files this project authored
 
-Eleven new source files are ours, plus the landing page, which was rewritten in place.
+Eleven new source files are ours, plus the landing page and its components, which were rewritten in place and then rebuilt as a landing page (step 12).
 Everything else in the tree is either the template's (see
 [below](#inherited-from-the-template-unchanged)) or machine-generated.
 
@@ -56,6 +56,14 @@ Everything else in the tree is either the template's (see
 | `packages/nextjs/services/retainer/server.ts` (203 lines) | The ABI subset, viem read clients, and the server wallet that forwards settled payments (`RETAINER_SERVER_KEY`) | Requirement that the server holds a key that can only *credit and open* subscriptions, never spend subscriber balances | Grew with `c0d7e08`; the credit-vs-revenue distinction is asserted in the contract tests |
 | `packages/nextjs/scripts/retainer-agent.ts` (153 lines) | The end-to-end agent demo: 402 → sign → settle → 200 unpaid → wait past expiry sending nothing → 200 again | The script exists to satisfy Hedera's bounty requirement 2 — an agent that completes a real paid request end to end — rather than to look good | Human runs it against testnet; its step 5 is the claim the whole project stands on |
 | `packages/nextjs/app/page.tsx` (244 lines, replacing the template's landing page) | The live view: window counting down, renewal log, HashScan links, all read from `/api/retainer/status` | The hard part of the brief: the product's whole claim is about something that happens when nobody is watching. The page had to show the counter reach zero and *not* go dark | Reviewed for the rule that nothing on the page is simulated — every number is chain state |
+| `packages/nextjs/app/page.tsx` (rebuilt as the landing page — claim, instrument, receipt band, `402 → pay → 200 → still 200`, live panels, proof ledger, questions, limitations, final CTA) | All markup and copy | A written design spec first (kitchen-side), then the page against it: the moment the ring closes had to be in the first viewport for a cold visitor; every number traceable to chain state or `docs/proof.md`; nothing claimed-but-unbuilt allowed back on the page | Five screenshot passes at three widths and two themes; each pass's three weakest findings fixed. Prompt `prompts/12-the-landing-page-as-an-instrument.md` |
+| `packages/nextjs/components/landing/Instrument.tsx`, `Ring.tsx` | The hero instrument: the access window as a ring with the scheduled call as a pin; two labelled modes (recorded run at 10× time, live chain); tabs, Play/Step, `aria-live` announcements | The recorded run exists because the live demo agent had lapsed when the page was designed; it must always be labelled as recorded, never autoplay under reduced motion, and switch to the live chain explicitly | The stale-mint step bug and the live label were found by stepped screenshots, not by reading |
+| `packages/nextjs/components/landing/recordedRun.ts` | The four transactions of the measured run, transcribed from `docs/proof.md` with HashScan links | Rule: every figure copied verbatim from the docs — no smoothing, no re-rounding | Checked row by row against `docs/proof.md` artifacts 3–6 |
+| `packages/nextjs/components/landing/useLiveWindow.ts` | The old page's polling, ticking and renewal-detection logic, lifted into a hook; a silent single retry for the relay's spurious reverts | Behaviour had to be preserved exactly; only the retry is new | The retry was added after a local run showed the public relay refusing a plain view read |
+| `packages/nextjs/styles/globals.css` (the `--rt-*` token layer and `.rt-*` recipes) | Tokens, component classes, motion, reduced-motion guard | Contrast measured for every text/background pair in both themes before a value was accepted; the tokens file's light-mode stub was rejected on measurement | Two cascade bugs (padding shorthand, unlayered margin reset) found by screenshots |
+| `packages/nextjs/components/Header.tsx`, `components/Footer.tsx` | Rewritten: product mark, section nav, skip link, real footer with version stamp and provenance | The version string is `v0.0.0-dev` because no tag exists; the footer must say where the template came from | — |
+| `packages/nextjs/app/judge/judge.module.css` | Colour and type values brought into the same family | Stays a self-contained module on purpose, so `/judge` cannot break when the product's system changes | — |
+| `e2e/landing.spec.ts` (6 tests) | The landing page's structure, asserted at the level a judge experiences it | Must not depend on the chain answering | — |
 
 ### Diagnostics and proof scripts
 
@@ -96,9 +104,9 @@ None of the following is our work. It is the template's, byte-identical to the i
   it is the subscription that makes a single payment keep paying.
 - **Hedera wallet/RPC layer:** `services/web3/appKitHedera.ts`, `appKitConfig.ts`,
   `wagmiConfig.tsx`, `hederaWalletConnect.tsx`; `app/api/hedera/{account,contract,transaction}/route.ts`.
-- **Scaffold UI and hooks:** `components/scaffold-hbar/**`, `components/{Footer,SwitchTheme,ThemeProvider,WalletAutoReconnect,LocalChainErrorBanner,ScaffoldHbarAppWithProviders}.tsx`,
+- **Scaffold UI and hooks:** `components/scaffold-hbar/**`, `components/{SwitchTheme,ThemeProvider,WalletAutoReconnect,LocalChainErrorBanner,ScaffoldHbarAppWithProviders}.tsx`,
   `app/debug/**`, `app/not-found.tsx`, all 17 remaining `hooks/scaffold-hbar/*` files,
-  `utils/scaffold-hbar/**`, `styles/globals.css`, `scaffold.config.ts`.
+  `utils/scaffold-hbar/**`, `scaffold.config.ts`. (`styles/globals.css` and `components/Footer.tsx` began as the template's and were rewritten in step 12; both are listed above.)
 - **Hardhat harness:** `hardhat.config.ts`, `scripts/{generateAccount,generateTsAbis,importAccount,listAccount,revealPK,runHardhatDeployWithPK,verifyDeployed}.ts`,
   `utils/{getDeployGasPrice,resolveHederaContractId}.ts`.
 - **Tooling and config:** `.github/workflows/lint.yaml`, `.husky/`, `.lintstagedrc.js`,
@@ -109,7 +117,8 @@ None of the following is our work. It is the template's, byte-identical to the i
 
 Template files we edited, all small and all listed with their reason in `specs/provenance.md`:
 `services/x402/server.ts` (facilitator default → hosted Blocky402, `8243c11`),
-`packages/nextjs/.env.example`, `app/layout.tsx`, `components/Header.tsx`,
+`packages/nextjs/.env.example`, `app/layout.tsx` (also `lang="en"`, step 12), `components/Header.tsx`,
+`components/SwitchTheme.tsx` (an `aria-label` on the toggle, step 12), `components/ScaffoldHbarAppWithProviders.tsx` (`id="content"` on `<main>` for the skip link, step 12),
 `utils/scaffold-hbar/getMetadata.ts`, `hooks/scaffold-hbar/index.ts` +
 `useHederaEvmAddress.ts`, `services/web3/hederaContractWrite.ts`, and the three `package.json`
 files (`@sh/*` → `@retainer/*`).

@@ -37,6 +37,7 @@ would remove the only interesting thing about that pair.
 | `09-forward-settlement-subscribefor.md` | The server opens the subscription with the settled payment | `c0d7e08` |
 | `10-strip-the-template-product.md` | Remove the template's marketplace, ship Retainer's surface | `c939840` |
 | `11-units-measured-not-assumed.md` | Measure Hedera's value units on testnet; reverse step 08's conversion | `9eb39e3` |
+| `12-the-landing-page-as-an-instrument.md` | Design spec first, then rebuild the landing page around the moment the ring closes | the landing-page series after `9c7d416` |
 
 ## What is deliberately not in here
 

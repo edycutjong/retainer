@@ -1457,6 +1457,18 @@
 .rt-enter--4 {
   animation-delay: 280ms;
 }
+/* The LCP element. `opacity: 0` makes an element ineligible for Largest Contentful Paint, so the
+   claim rises into place without fading: it is painted, and countable, on the very first frame. */
+.rt-enter--lcp {
+  opacity: 1;
+  animation: rt-enter-rise 480ms var(--rt-ease) forwards;
+  animation-delay: 0ms;
+}
+@keyframes rt-enter-rise {
+  to {
+    transform: none;
+  }
+}
 @keyframes rt-enter {
   to {
     opacity: 1;
@@ -1488,6 +1500,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .rt-enter,
+  .rt-enter--lcp,
   .rt-reveal {
     opacity: 1;
     transform: none;

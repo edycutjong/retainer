@@ -25,16 +25,17 @@ That single rule is why `RENEWAL_GAS_LIMIT` is a pricing decision and not a safe
 
 ## The three measured renewals
 
-One x402 purchase (`RETAINER_PERIODS_PER_PURCHASE=3`) charges its first period at subscribe time
-and arms the first renewal. Each renewal then charges the next period and arms the one after it,
-until the money or the gas reserve runs out. That produced exactly three scheduled executions,
-all `scheduled=True`, all `SUCCESS`, read back from the mirror node:
+A purchase charges its first period at subscribe time and arms the first renewal. Each renewal
+then charges the next period and arms the one after it, until the money or the gas reserve runs
+out. The measured run funded 4 HBAR at 1 HBAR per period, so it bought four periods: one at
+subscribe and three by renewal. That produced exactly three scheduled executions, all
+`scheduled=True`, all `SUCCESS`, read back from the mirror node:
 
 | Consensus timestamp | Charged (tinybar) | Charged (HBAR) | What it did |
 |---|---:|---:|---|
 | `1788780226.016366208` | 154,896,000 | 1.54896 | renewed **and re-armed** the next |
 | `1788780286.019735208` | 154,896,000 | 1.54896 | renewed **and re-armed** the next |
-| `1788780346.345418842` | 5,067,825 | 0.05068 | hit the gas-reserve guard, emitted `Lapsed`, **did not re-arm** |
+| `1788780346.345418842` | 5,067,825 | 0.05068 | charged the last period, then lapsed on the subscriber's balance, **did not re-arm** |
 
 Supporting figures from the same run:
 
@@ -45,19 +46,22 @@ Supporting figures from the same run:
 | Deploy gas used (testnet) | 968,564 |
 | `RENEWAL_GAS_LIMIT` | 2,500,000 |
 | `RENEWAL_COST_ESTIMATE` debited from `gasReserve` per *armed* renewal | 200,000,000 tinybar (2 HBAR) |
-| Local hardhat `renew()` gas | 48,168 – 75,092 |
-| Local hardhat `subscribe()` gas | 177,765 – 199,665 |
+| Local hardhat `renew()` gas | 48,247 – 77,085 |
+| Local hardhat `subscribe()` gas | 137,552 – 205,722 |
 
 These came off the first deployment, `0.0.10406083` /
 [`0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A`](https://hashscan.io/testnet/contract/0.0.10406083),
-which predates the current constructor and ABI; a redeploy is pending. The fee behaviour and the
-`RENEWAL_GAS_LIMIT` the measurements rest on are unchanged, but do not expect that address to
-match `RetainerAccess.sol` as it stands today.
+which predates the current constructor and ABI. The current source is deployed separately at
+[`0.0.10414167`](https://hashscan.io/testnet/contract/0.0.10414167), where one scheduled renewal
+was charged 153,816,728 tinybar (1.53817 HBAR) — within 0.7% of the figures in the table above. The fee
+behaviour and the `RENEWAL_GAS_LIMIT` the measurements rest on are unchanged, but do not expect
+`0.0.10406083` to match `RetainerAccess.sol` as it stands today.
 
 ### What the 1.549 vs 0.051 split proves
 
-The third execution lapsed instead of arming the next one: it emitted `Lapsed` and never
-reached `scheduleCall`. It cost **1.498 HBAR less** than the two that did — a 30x gap. So:
+The third execution charged its period and then lapsed instead of arming the next one: with the
+subscriber's balance spent it emitted `Lapsed("balance will not cover the next period")` and
+never reached `scheduleCall`. It cost **1.498 HBAR less** than the two that did — a 30x gap. So:
 
 - **Re-arming the next renewal is ~97% of what a renewal costs.** The `scheduleCall` into `0x16b`
   is the expense.
@@ -79,7 +83,7 @@ matters for pricing, and that one is measured directly.
 
 ## Why the local gas report disagrees
 
-`yarn hardhat:test` reports `renew()` at 48,168 – 75,092 gas. On testnet a re-arming renewal
+`yarn hardhat:test` reports `renew()` at 48,247 – 77,085 gas. On testnet a re-arming renewal
 consumes ~1.5M and is billed at the ~2.0M floor. That is not a discrepancy to reconcile away —
 **the ~1.4M gap between the local figure and real consumption _is_ the system-contract call.**
 

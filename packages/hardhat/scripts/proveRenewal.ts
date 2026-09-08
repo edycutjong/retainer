@@ -4,8 +4,9 @@
  *  1. Access renews itself with nobody calling renew(). We subscribe, then send NO further
  *     transaction and watch the window extend on its own.
  *  2. Refunds pay out the real amount. This is the regression guard for the unit bug: the
- *     contract stores tinybar and `value` on the wire is weibar, so a refund that forgets to
- *     convert underpays by 1e10 and does it without reverting.
+ *     JSON-RPC relay takes weibar on the wire and the EVM sees tinybar, so the contract
+ *     converts nothing — and an added 1e10 conversion on the way out overpays by ten orders
+ *     of magnitude, silently. Measured with contracts/test/UnitProbe.sol.
  */
 import { ethers } from "ethers";
 import * as fs from "fs";
@@ -38,8 +39,8 @@ async function main() {
   console.log(`gas reserve can arm ${await c.renewalsRemaining()} more renewals\n`);
 
   // Units are asymmetric and getting this wrong is the bug this script guards against:
-  // `value` on the wire is WEIBAR (1 HBAR = 1e18). The contract converts to TINYBAR
-  // (1 HBAR = 1e8) on the way in and back to weibar on the way out.
+  // `value` on the wire is WEIBAR (1 HBAR = 1e18); the RELAY converts it to TINYBAR
+  // (1 HBAR = 1e8) before the EVM sees it. The contract itself converts nothing.
   const periodsToFund = 3n;
   const fundingWeibar = price * periodsToFund * WEIBAR_PER_TINYBAR;
 

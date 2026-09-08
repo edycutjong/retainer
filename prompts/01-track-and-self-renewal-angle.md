@@ -20,9 +20,9 @@ it is what the reference implementations do.
 
 The angle to build instead: **an agent can pay for a thing, but an agent cannot subscribe to
 a thing, because every renewal needs somebody awake to re-authorise it.** Remove that person.
-Hedera has a primitive no other chain in this event has — the Schedule Service (HIP-1215,
-system contract `0x16b`) — which lets a contract ask the network to call a function on it at
-a future second. A subscription contract can therefore schedule its own next renewal.
+Hedera has a primitive an ordinary EVM does not — the Schedule Service (HIP-1215, system
+contract `0x16b`) — which lets a contract ask the network itself to call a function on it at
+a future second, with no keeper, relayer or off-chain executor in the loop. A subscription contract can therefore schedule its own next renewal.
 
 Constraint on the angle: the Schedule Service must be the engine, not decoration. If the
 renewal could be done by a cron job on a server, the project is a cron job with extra steps.

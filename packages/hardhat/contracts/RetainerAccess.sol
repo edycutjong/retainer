@@ -41,7 +41,7 @@ import {HederaResponseCodes} from "@hiero-ledger/hiero-contracts/common/HederaRe
  *
  * This is measured, not assumed. `contracts/test/UnitProbe.sol` was deployed to testnet and sent
  * 2 HBAR as 2e18 on the wire; it reported `msg.value == 200000000` and
- * `address(this).balance == 200000000`. See `docs/hedera-units.md`.
+ * `address(this).balance == 200000000`. That probe is the evidence, and it is in this repo.
  *
  * ## Why renewal can stop
  *
@@ -73,9 +73,11 @@ contract RetainerAccess is HederaScheduleService {
     /**
      * How early `renew()` may be called, in seconds.
      *
-     * The Schedule Service does not execute at exactly `expirySecond` — observed on testnet
-     * firing one second early (scheduled 1788779925, executed 1788779924). A strict
-     * `block.timestamp >= expiresAt` gate therefore rejects the network's own scheduled call
+     * The block timestamp a scheduled call sees can be behind the second it was scheduled for.
+     * Observed on testnet against contract 0.0.10406002: the schedule was armed for
+     * `expiresAt = 1788779924`, the network executed it at consensus 1788779924.038958161, and
+     * `renew()` still reverted (CONTRACT_REVERT_EXECUTED) under a strict
+     * `block.timestamp >= expiresAt` gate. So that gate rejects the network's own scheduled call
      * and the subscription silently fails to renew.
      */
     uint256 private constant RENEW_SLACK = 30;

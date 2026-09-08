@@ -14,12 +14,30 @@ Everything here was read back from `https://testnet.mirrornode.hedera.com` on 20
 
 ---
 
-## Read this first: the live deployment is behind the source
+## Read this first: the measured deployment is not the current one
 
 The contract at **0.0.10406083** is the deployment that produced the run recorded below. It
 predates the contract fixes made after that run, so **it does not run the code currently in
-`packages/hardhat/contracts/RetainerAccess.sol`**. A redeploy is pending; until it lands,
-treat this address as the source of the evidence, not as a copy of the current source.
+`packages/hardhat/contracts/RetainerAccess.sol`**. Treat this address as the source of the
+evidence, not as a copy of the current source.
+
+The current source is deployed separately, at
+**[`0.0.10414167`](https://hashscan.io/testnet/contract/0.0.10414167)** /
+`0xd3A218AD4c817B14Cc754e4c996A95435155a27B` — the address in
+`packages/nextjs/contracts/deployedContracts.ts`, and therefore the one the resource server
+talks to. It carries the current ABI (`subscribeFor`, `creditFor`, `syncReserve`, `setTerms`,
+`MIN_PERIOD_SECONDS`), and it has already renewed itself once unattended:
+
+```bash
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions?timestamp=1788827767.015718559" \
+  | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\(.scheduled)", .result, "fee=\(.charged_tx_fee)"] | @tsv'
+# 1788827767.015718559  CONTRACTCALL  scheduled=true  SUCCESS  fee=153816728
+```
+
+`cancel()` then deleted the pending schedule `0.0.10414197` — the mirror node reports it
+`deleted: true` with no `executed_timestamp` — which is `deleteSchedule` returning the reserved
+gas rather than abandoning it. What that deployment has **not** done is run to exhaustion, which
+is why the cost measurements below still come from `0.0.10406083`.
 
 Two details visible in the data below make the difference concrete, and are worth knowing
 before anyone tries to reconcile them with the source:
@@ -104,7 +122,7 @@ contract at `0x16b` produced a real scheduled entity, `0.0.10406098`, with
 
 The gas number is the cost story in one line: 1,582,554 gas for a call whose product logic is
 bookkeeping over a struct. The same `subscribe` path in the local hardhat suite — where the
-scheduler is the mock and `scheduleCall` is a no-op emit — reports 177,765–199,665. The
+scheduler is the mock and `scheduleCall` is a no-op emit — reports 137,552–205,722. The
 ~1.4M difference **is** the real `scheduleCall`.
 
 ## Artifacts 4 and 5 — two unattended renewals
@@ -277,9 +295,11 @@ curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1
 
 ## What this does not prove
 
-- It does not prove the **current** source behaves this way on testnet. The deployment is one
-  revision behind; see the note at the top. The current source is covered by 38 tests in
-  `packages/hardhat/test/RetainerAccess.test.ts` (`yarn hardhat:test`), against the mock.
+- It does not prove the **current** source behaves this way to exhaustion on testnet. This run
+  is one revision behind the source; the current deployment named at the top has completed one
+  unattended renewal and a cancel, not a full lapse cycle. The current source is covered by
+  40 tests in `packages/hardhat/test/RetainerAccess.test.ts` (`yarn hardhat:test`), against
+  the mock.
 - It does not prove the fee stays at 1.54896 HBAR. Hedera gas price moves; the measurement is
   a point in time, which is why `RENEWAL_COST_ESTIMATE` is a documented estimate with headroom
   rather than a promise.

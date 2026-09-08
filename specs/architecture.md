@@ -138,11 +138,25 @@ Removing any one of these breaks the product rather than degrading it:
 
 ### Lapsing is loud, never silent
 
-`Lapsed` is emitted **before** scheduling, not after a failure. A scheduled call that cannot
-pay for itself fails with `INSUFFICIENT_PAYER_BALANCE` and emits nothing at all — the
-subscription would otherwise look alive forever while being dead. Four reasons are named
-explicitly: the subscriber cancelled, their balance will not cover the next period, the gas
-reserve will not cover the next renewal, or the network has no capacity at that second.
+`Lapsed` is emitted **before** the scheduling attempt wherever the contract can see the failure
+coming. A scheduled call that cannot pay for itself fails with `INSUFFICIENT_PAYER_BALANCE` and
+emits nothing at all — the subscription would otherwise look alive forever while being dead.
+Five reason strings are named explicitly. Four of them are asserted by name in the test suite:
+
+- `"balance will not cover the next period"` — the period after this one is unaffordable
+- `"gas reserve will not cover the next renewal"` — the seller's reserve is below
+  `RENEWAL_COST_ESTIMATE`
+- `"no schedule capacity at that second"` — `hasScheduleCapacity` said no
+- `"network refused the schedule"` — `scheduleCall` returned a non-`SUCCESS` response code
+
+The fifth, `"insufficient subscriber balance"` at the top of `renew()`, is a defensive branch
+with no test, because `_armRenewal` deactivates a subscription one period *before* the money
+runs out — so a renewal that reaches `renew()` with an empty balance should not be reachable.
+It is kept rather than replaced with an assert: an unreachable branch that emits an event is
+cheaper to be wrong about than one that reverts inside the network's own scheduled call.
+
+A subscriber cancelling is **not** one of them: `cancel()` emits `Cancelled` and releases the
+pending schedule, which is an ending the subscriber chose rather than one that surprised them.
 
 ### Guards worth knowing about
 
@@ -150,11 +164,11 @@ reserve will not cover the next renewal, or the network has no capacity at that 
 |---|---|
 | Seller sets terms (`setTerms`), snapshotted per subscription | Letting the subscriber pick the price meant 2 tinybar bought a full window while burning ~2 HBAR of the seller's gas reserve. Changing terms never reprices a running subscription. |
 | `renew()` is public, but time-gated | The network's scheduled call has no special identity, so `renew` must be callable by anyone. The gate is what stops a stranger looping it and burning the contract's own HBAR. |
-| `RENEW_SLACK = 30s` | The Schedule Service does not fire at exactly `expirySecond` — observed one second **early** on testnet. A strict `>=` gate rejected the network's own call and silently broke self-renewal. |
+| `RENEW_SLACK = 30s` | A scheduled call can see a block timestamp **behind** the second it was scheduled for. On testnet (`0.0.10406002`) a schedule armed for `expiresAt = 1788779924` executed at consensus `1788779924.038958161` and still reverted under a strict `>=` gate, silently breaking self-renewal. |
 | `MIN_PERIOD_SECONDS = 61` | A period shorter than `2 × RENEW_SLACK` would leave the callable window permanently open, re-opening the griefing hole the slack created. |
-| tinybar in storage, weibar on the wire | Hedera's EVM denominates `msg.value` and `balance` in **weibar**; the network accounts in **tinybar**, at 1e10:1. Everything is stored in tinybar and converted only at the EVM boundary. Mixing them underpays a transfer by ten orders of magnitude and looks like a successful transaction. |
+| tinybar everywhere inside the contract | The JSON-RPC relay speaks **weibar** (1 HBAR = 1e18) and converts at the edge; inside the EVM `msg.value`, `address(this).balance` and an outbound `call{value:}` are all **tinybar** (1 HBAR = 1e8). So the contract converts nothing. Measured with `contracts/test/UnitProbe.sol` on testnet after an earlier 1e10 conversion overpaid every transfer by ten orders of magnitude (`9eb39e3`). |
 
-**38 tests** cover these paths (`yarn hardhat:test`). The scheduler itself is mocked locally —
+**40 tests** cover these paths (`yarn hardhat:test`). The scheduler itself is mocked locally —
 `contracts/test/MockScheduleService.sol`, installed at `0x16b` with `hardhat_setCode` — because
 a local node has no Schedule Service and because testnet cannot be asked to refuse you on
 demand. The mock stands in for the *scheduler*, never for the product logic; that the real
@@ -179,13 +193,13 @@ transaction from any user or server:
 |---|---|---|
 | `1788780226.016366208` | 154,896,000 tinybar (1.54896 HBAR) | renewed **and re-armed** the next |
 | `1788780286.019735208` | 154,896,000 tinybar (1.54896 HBAR) | renewed **and re-armed** the next |
-| `1788780346.345418842` | 5,067,825 tinybar (0.0507 HBAR) | hit the gas-reserve guard, emitted `Lapsed`, did **not** re-arm |
+| `1788780346.345418842` | 5,067,825 tinybar (0.0507 HBAR) | charged the last funded period, then emitted `Lapsed("balance will not cover the next period")` and did **not** re-arm |
 
 **The 30x gap between the first two and the third is the whole cost story.** Re-arming the next
 renewal — the `scheduleCall` into `0x16b` — is roughly 97% of what a renewal costs. The
 renewal's own bookkeeping is the cheap 0.05 HBAR part. Local hardhat gas reports agree by
-subtraction: with the scheduler mocked out, `renew()` measures 48,168–75,092 and `subscribe()`
-177,765–199,665, so the ~1.4M gas difference against testnet *is* the real system-contract call.
+subtraction: with the scheduler mocked out, `renew()` measures 48,247–77,085 and `subscribe()`
+137,552–205,722, so the ~1.4M gas difference against testnet *is* the real system-contract call.
 
 Hedera refunds at most 20% of an unused gas limit, so `RENEWAL_GAS_LIMIT = 2,500,000` is
 charged at roughly 2,000,000 gas whether or not it is used.
@@ -216,14 +230,20 @@ Hedera **testnet** throughout. Blocky402's hosted testnet facilitator advertises
 `hedera:testnet`, scheme `exact`, x402Version 2, and supplies its own fee payer — so no
 self-hosted facilitator, and no Docker, is required.
 
-The deployment that produced the proof above:
+Two deployments, and they are not the same code. Keeping them apart is the point:
 
-- `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A`
-- <https://hashscan.io/testnet/contract/0.0.10406083>
+- **The measured one** — `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A`,
+  <https://hashscan.io/testnet/contract/0.0.10406083>. Every cost figure above came off this
+  contract. It predates the later contract fixes and carries an older constructor and ABI, so
+  it does **not** run `RetainerAccess.sol` as it stands today.
+- **The current one** — `0.0.10414167` / `0xd3A218AD4c817B14Cc754e4c996A95435155a27B`,
+  <https://hashscan.io/testnet/contract/0.0.10414167>. This is the address in
+  `packages/nextjs/contracts/deployedContracts.ts`, so it is the contract the resource server
+  actually talks to. It has renewed itself once unattended; it has not been run to exhaustion,
+  which is why the cost table is still quoted from the older deployment.
 
-That deployment predates this session's contract fixes and carries an older constructor and
-ABI; it is the address the measurements were taken from, not the current source. **A redeploy
-is pending.**
+[`docs/proof.md`](../docs/proof.md) holds the mirror-node evidence for both, with the exact
+requests to re-check it.
 
 ### Configuration
 
@@ -261,9 +281,12 @@ Named here so nothing in this document is mistaken for something that ships.
 
 This repository began as Hedera's own `x402-pay-per-use` starter template, whose product was a
 MinIO-backed pay-per-download file marketplace with a self-hosted facilitator, a `FileRegistry`
-contract, a block explorer and a `docker-compose` stack. All of it has been removed. What came
-from the template, what was deleted, and what was written here is recorded in
-[`provenance.md`](provenance.md).
+contract, a block explorer and a `docker-compose` stack. The product is gone — nothing above
+runs on any of it, and Retainer needs no Docker, no object storage and no self-hosted
+facilitator. A few unused files and keys it touched have not been swept yet;
+[`provenance.md`](provenance.md) names each one under "Template residue" rather than leaving a
+judge to find them, alongside the full account of what came from the template, what was
+deleted, and what was written here.
 
 ## Notes
 

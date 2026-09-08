@@ -27,7 +27,7 @@ the AI are in this repository:
 - `specs/` — `architecture.md`, `provenance.md`
 - `prompts/` — one file per build step, indexed in `prompts/README.md`, which states plainly
   that those files are reconstructed from the commit history rather than a keystroke log
-- the commit history itself — the nine build commits indexed in `prompts/README.md`, each one a
+- the commit history itself — the ten build commits indexed in `prompts/README.md`, each one a
   step or a correction. It is the highest fidelity record here and every claim below names the
   commit it can be checked against.
 
@@ -41,10 +41,10 @@ Everything else in the tree is either the template's (see
 
 | File | AI-generated | Human-directed | Human-reviewed / corrected |
 |---|---|---|---|
-| `packages/hardhat/contracts/RetainerAccess.sol` (419 lines) | All Solidity: subscription state, the three separated pots (`_owed` / `revenue` / `gasReserve`), the `_solvent()` invariant, and every Hedera Schedule Service call — `scheduleCall`, `deleteSchedule`, `hasScheduleCapacity` | The product itself — access that re-arms its own renewal instead of being re-authorised by a person. Approved: money split three ways rather than one balance; `renew()` permissionless but time-gated; lapse loudly rather than revert | Four review passes changed the contract after it "worked". `b68b540` fixed a griefing vector where a stranger could force renewals, added the revenue path and split the pots. `818c517` added `RENEW_SLACK` after the **real** testnet scheduler fired a second early and the time gate rejected it. `78025d2` fixed four money bugs: weibar-vs-tinybar unit confusion on refund and payout, deposits too small to be one tinybar minting balance, the subscriber setting their own price, and a solvency check comparing mixed units, and added `creditFor`. `c0d7e08` added `subscribeFor` |
+| `packages/hardhat/contracts/RetainerAccess.sol` (438 lines) | All Solidity: subscription state, the three separated pots (`_owed` / `revenue` / `gasReserve`), the `_solvent()` invariant, and every Hedera Schedule Service call — `scheduleCall`, `deleteSchedule`, `hasScheduleCapacity` | The product itself — access that re-arms its own renewal instead of being re-authorised by a person. Approved: money split three ways rather than one balance; `renew()` permissionless but time-gated; lapse loudly rather than revert | Four review passes changed the contract after it "worked". `b68b540` fixed a griefing vector where a stranger could force renewals, added the revenue path and split the pots. `818c517` added `RENEW_SLACK` after the **real** testnet scheduler fired a second early and the time gate rejected it. `78025d2` fixed four money bugs — the subscriber setting their own price, the subscriber setting a period shorter than `RENEW_SLACK`, cancel abandoning a paid-for schedule, and what looked like weibar/tinybar confusion — and added `creditFor`. `c0d7e08` added `subscribeFor`. `9eb39e3` then reversed the unit half of that: `UnitProbe.sol`, deployed to testnet, showed the EVM is already tinybar, so the conversion `78025d2` added was itself an overpay bug |
 | `packages/hardhat/contracts/test/MockScheduleService.sol` (55 lines) | A stand-in for system contract `0x16b`, installed with `hardhat_setCode`, with switchable failure modes | Decision that the mock replaces **only the scheduler** — never the product logic. That the real Schedule Service behaves as assumed is proven on testnet, not by this mock, and the file says so in its own header | Kept deliberately dumb; the lapse paths exist here because testnet cannot be asked to refuse you on demand |
-| `packages/hardhat/contracts/test/UnitProbe.sol` (32 lines) | A throwaway probe that measures, on-chain, whether Hedera's EVM denominates `msg.value` in weibar or tinybar | Requirement that the unit question be settled by measurement rather than by reasoning from Ethereum's semantics | Not on the shipped path and not imported by the test suite; kept because it is the evidence behind the unit fix in `78025d2` |
-| `packages/hardhat/test/RetainerAccess.test.ts` (367 lines, 38 tests) | Every test, including the unit-conversion, griefing, money-separation, lapse and access-window suites | Requirement that each bug fixed above gets a test that fails without the fix, and that each lapse reason is asserted separately | The suite missed the early-firing scheduler entirely — that regression was caught on testnet, not in CI. The test *"accepts a renewal that fires slightly EARLY, as the real scheduler does"* exists because of it (`818c517`) |
+| `packages/hardhat/contracts/test/UnitProbe.sol` (32 lines) | A throwaway probe that measures, on-chain, whether Hedera's EVM denominates `msg.value` in weibar or tinybar | Requirement that the unit question be settled by measurement rather than by reasoning from Ethereum's semantics | Not on the shipped path and not imported by the test suite; kept because it is the evidence that overturned the unit change made in `78025d2` (`9eb39e3`) |
+| `packages/hardhat/test/RetainerAccess.test.ts` (387 lines, 40 tests) | Every test, including the unit-conversion, griefing, money-separation, lapse and access-window suites | Requirement that each bug fixed above gets a test that fails without the fix, and that each reachable lapse reason is asserted by name (four of the five; the fifth guards a branch `_armRenewal` should make unreachable) | The suite missed the early-firing scheduler entirely — that regression was caught on testnet, not in CI. The test *"accepts a renewal that fires slightly EARLY, as the real scheduler does"* exists because of it (`818c517`) |
 | `packages/hardhat/deploy/01_deploy_retainer_access.ts` | Deploy script, constructor args, Hedera gas limits | Human supplied the funded deployer account and the beneficiary address | Reworked in `78025d2` when the constructor took terms |
 
 ### Resource server, agent, and live view
@@ -54,30 +54,31 @@ Everything else in the tree is either the template's (see
 | `packages/nextjs/app/api/retainer/access/route.ts` (227 lines) | The x402 gate: build payment requirements, answer 402, verify and settle through the Blocky402 facilitator, then forward the settled payment on-chain into `subscribeFor(agent)` | The behaviour that had to be visible in the response body: `paidThisRequest:false` on request two, and 200 after the window should have expired | Split across `c047b63` (gate) and `c0d7e08` (settlement actually opens the subscription — before that the payment and the on-chain state were not joined) |
 | `packages/nextjs/app/api/retainer/status/route.ts` | Read-only subscription state for polling | Kept deliberately separate from the gate route: polling the gate would open a fresh payment challenge every second just to draw a countdown | Reviewed for that one property |
 | `packages/nextjs/services/retainer/server.ts` (203 lines) | The ABI subset, viem read clients, and the server wallet that forwards settled payments (`RETAINER_SERVER_KEY`) | Requirement that the server holds a key that can only *credit and open* subscriptions, never spend subscriber balances | Grew with `c0d7e08`; the credit-vs-revenue distinction is asserted in the contract tests |
-| `packages/nextjs/scripts/retainer-agent.ts` (129 lines) | The end-to-end agent demo: 402 → sign → settle → 200 unpaid → wait past expiry sending nothing → 200 again | The script exists to satisfy Hedera's bounty requirement 2 — an agent that completes a real paid request end to end — rather than to look good | Human runs it against testnet; its step 5 is the claim the whole project stands on |
+| `packages/nextjs/scripts/retainer-agent.ts` (153 lines) | The end-to-end agent demo: 402 → sign → settle → 200 unpaid → wait past expiry sending nothing → 200 again | The script exists to satisfy Hedera's bounty requirement 2 — an agent that completes a real paid request end to end — rather than to look good | Human runs it against testnet; its step 5 is the claim the whole project stands on |
 | `packages/nextjs/app/page.tsx` (244 lines, replacing the template's landing page) | The live view: window counting down, renewal log, HashScan links, all read from `/api/retainer/status` | The hard part of the brief: the product's whole claim is about something that happens when nobody is watching. The page had to show the counter reach zero and *not* go dark | Reviewed for the rule that nothing on the page is simulated — every number is chain state |
 
 ### Diagnostics and proof scripts
 
 | File | AI-generated | Human-directed | Human-reviewed / corrected |
 |---|---|---|---|
-| `packages/hardhat/scripts/proveRenewal.ts` | Subscribes, then waits and watches without sending anything further; it also checks that a refund pays out the real amount, as a regression guard on the weibar/tinybar bug | Written to answer one question — does `Renewed` fire with no transaction from us? Its testnet output is the proof cited in the README | Human ran it on testnet, read the results off the mirror node, and kept the run that showed the third renewal lapsing on the gas reserve rather than only the two that succeeded |
+| `packages/hardhat/scripts/proveRenewal.ts` | Subscribes, then waits and watches without sending anything further; it also checks that a refund pays out the real amount, as a regression guard on the contract's unit handling (`9eb39e3`) | Written to answer one question — does `Renewed` fire with no transaction from us? Its testnet output is the proof cited in the README | Human ran it on testnet, read the results off the mirror node, and kept the run that showed the third renewal lapsing rather than only the two that succeeded |
 | `packages/hardhat/scripts/diagnose.ts` | Checks that `0x16b` really is present on testnet, plus contract state dumps | Written because "the system contract exists" was an assumption, and assumptions about the sponsor's platform are the ones that sink a build | Kept in the repo rather than deleted — it is how anyone else verifies the same thing |
 
 ### Documentation in this repo
 
-`AI-USAGE.md`, `specs/architecture.md`, `specs/provenance.md`, `docs/gas-economics.md` and
-`prompts/*.md` are AI-written and human-reviewed. `specs/provenance.md` carries dated
+`AI-USAGE.md`, `specs/architecture.md`, `specs/provenance.md`, `docs/proof.md`,
+`docs/gas-economics.md` and `prompts/*.md` are AI-written and human-reviewed. `specs/provenance.md` carries dated
 corrections recording claims it previously got wrong, rather than quietly fixing them.
 
 `README.md` descends from the template's own README. Where it describes Retainer the prose is
 AI-drafted and human-reviewed; where it still describes generic `scaffold-hbar` setup (Node
 version, Yarn workspaces, key import) that text is the template's.
 
-`RUNBOOK.md` is still the template's runbook and has not been rewritten. It documents the
-marketplace that `c939840` deleted — `FileRegistry`, MinIO, the docker-compose stack, the
-self-hosted facilitator and `yarn infra:up`, none of which exist any more. It is stale
-template residue, not a description of Retainer; `README.md` is the setup path that is true.
+`RUNBOOK.md` descends from the template's runbook and was rewritten for Retainer in `9eb39e3`
+(408 insertions, 229 deletions against the version at `4a0ddc3`). It now walks a clean checkout
+through compile, tests, deploy, the resource server and the on-chain confirmation of a renewal;
+`FileRegistry`, MinIO, `docker-compose` and `yarn infra:up` appear in it only in the sentence
+saying they were removed. AI-drafted and human-reviewed, like the rest of the prose here.
 
 ## Inherited from the template, unchanged
 
@@ -131,8 +132,8 @@ members"* forfeits partner prizes and finalist consideration. Concretely, the hu
   off the payment path; one x402 payment buying `RETAINER_PERIODS_PER_PURCHASE` periods.
 - **Ran the live testnet proof and read the mirror node**, which is where the numbers in the
   README come from: `subscribe()` at 1,582,554 gas, three scheduled `CONTRACTCALL`s with
-  `scheduled=True`, two at 1.54896 HBAR and the third at 0.0507 HBAR when it hit the gas-reserve
-  guard. The 30× gap between them — re-arming the next renewal is ~97% of a renewal's cost — was
+  `scheduled=True`, two at 1.54896 HBAR and the third at 0.0507 HBAR, where it charged the
+  subscriber's last period and then lapsed instead of re-arming. The 30× gap between them — re-arming the next renewal is ~97% of a renewal's cost — was
   found by measuring, not by reasoning.
 - **Decided that that finding ships as written.** At a 1 HBAR period price the product loses
   money on every renewal. It would have been easy to price the demo around the problem; instead
@@ -147,5 +148,5 @@ members"* forfeits partner prizes and finalist consideration. Concretely, the hu
 The code is AI-written. The judgement about what to build, what to keep, what was actually true
 on testnet, and what to admit is not. A judge should read this repo as a human directing and
 auditing a fast code generator — reviewing hard enough to have rejected four money bugs, one
-griefing vector and one false claim before submission — and not as a human who typed 419 lines
+griefing vector and one false claim before submission — and not as a human who typed 436 lines
 of Solidity.

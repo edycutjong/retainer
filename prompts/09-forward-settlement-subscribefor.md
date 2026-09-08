@@ -53,4 +53,4 @@ number for which the claim is observable twice.
 - `packages/nextjs/app/api/retainer/access/route.ts` — call it on settlement instead of printing advice
 - `packages/nextjs/.env.example` — `RETAINER_SERVER_KEY`, `RETAINER_PERIODS_PER_PURCHASE`
 
-Tests for the new path bring the suite to 38 passing (`yarn hardhat:test`).
+Tests for the new path bring the suite to 38 passing at this commit (`yarn hardhat:test`); step 11 takes it to 40.

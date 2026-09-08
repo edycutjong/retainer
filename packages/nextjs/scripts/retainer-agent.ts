@@ -2,7 +2,9 @@
  * The Retainer demo, end to end, as an agent experiences it.
  *
  *   1. request  -> 402. The agent signs a Hedera payment; Blocky402 settles it.
- *   2. subscribe on-chain so access renews itself.
+ *   2. the server forwards that settled payment into subscribeFor(agent), which opens the
+ *      self-renewing subscription. (Without RETAINER_SERVER_KEY the server cannot forward,
+ *      and the script opens the subscription itself so the rest of the demo still runs.)
  *   3. request  -> 200, and nothing was paid.
  *   4. wait past expiry, sending nothing at all.
  *   5. request  -> 200 again, because the contract renewed itself.
@@ -25,7 +27,8 @@ import { join } from "node:path";
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const RPC = process.env.HEDERA_RPC_URL ?? "https://testnet.hashio.io/api";
 const NETWORK = (process.env.X402_NETWORK ?? "hedera:testnet") as Network;
-const PERIOD = Number(process.env.PERIOD_SECONDS ?? 60);
+/** Override the wait; unset means "read the seller's period off the contract". */
+const PERIOD = process.env.PERIOD_SECONDS ? Number(process.env.PERIOD_SECONDS) : undefined;
 
 function cred(k: string): string {
   const m = readFileSync(join(homedir(), ".config/retainer/hedera.env"), "utf8").match(new RegExp(`^${k}=(.*)$`, "m"));
@@ -34,7 +37,10 @@ function cred(k: string): string {
 }
 
 const ABI = [
-  "function subscribe(uint256 pricePerPeriod, uint32 periodSeconds) payable",
+  // `subscribe()` takes no arguments: the terms are the seller's, set with `setTerms`.
+  "function subscribe() payable",
+  "function pricePerPeriod() view returns (uint256)",
+  "function periodSeconds() view returns (uint32)",
   "function subscriptionOf(address) view returns (uint256,uint256,uint256,uint32,bool,address)",
   "function cancel()",
 ];
@@ -91,27 +97,45 @@ async function main() {
   const paid = await fetch(`${BASE}/api/retainer/access?agent=${agent}`, {
     headers: http.encodePaymentSignatureHeader(payload),
   });
+  const paidBody: any = await paid
+    .clone()
+    .json()
+    .catch(() => ({}));
   const result = await http.processResponse(paid);
   if (result.kind !== "success") throw new Error(`payment failed: ${result.kind}`);
   console.log(`  ✅ settled · tx ${result.settleResponse.transaction}`);
   console.log(`  https://hashscan.io/testnet/transaction/${result.settleResponse.transaction}`);
 
-  // ── 3. open a self-renewing subscription
-  console.log("\n3) opening a self-renewing subscription on-chain");
+  // ── 3. the self-renewing subscription
+  //
+  // With RETAINER_SERVER_KEY set, the resource server has already forwarded the settled
+  // payment into subscribeFor(agent) — the agent holds a self-renewing subscription without
+  // ever signing an on-chain transaction, and calling subscribe() here would revert with
+  // AlreadyActive. Only when that key is absent does the agent open the subscription itself.
   const c = new Contract(contractAddr, ABI, wallet);
-  const price = 100_000_000n; // 1 HBAR per period, tinybar
-  const funding = 4n * 10n ** 18n; // 4 HBAR, weibar
-  const tx = await c.subscribe(price, PERIOD, { value: funding, gasLimit: 2_000_000 });
-  await tx.wait();
-  console.log(`  subscribed · tx ${tx.hash}`);
+  if (paidBody?.subscription?.opened) {
+    console.log("\n3) the server opened the subscription with the settled payment");
+    console.log(`  subscribed · tx ${paidBody.subscription.transaction}`);
+  } else {
+    console.log("\n3) no server-side forward — opening the subscription directly");
+    // Terms are the seller's; the agent only chooses how many periods to fund. `value` on the
+    // wire is weibar (1e18) and the relay converts it to the tinybar the EVM sees (1e8).
+    const price: bigint = await c.pricePerPeriod();
+    const funding = price * 4n * 10n ** 10n; // 4 periods
+    const tx = await c.subscribe({ value: funding, gasLimit: 2_000_000 });
+    await tx.wait();
+    console.log(`  subscribed · tx ${tx.hash}`);
+  }
 
   // ── 4. the same request, now free
   console.log("\n4) same request again");
   await ask(agent, "warm request");
 
-  // ── 5. wait past expiry, sending nothing
-  console.log(`\n5) waiting ${PERIOD + 45}s past expiry — sending NOTHING`);
-  await new Promise(r => setTimeout(r, (PERIOD + 45) * 1000));
+  // ── 5. wait past expiry, sending nothing. The period is the seller's, read from the
+  //      contract, so this waits for the window that actually exists.
+  const period = PERIOD ?? Number(await c.periodSeconds());
+  console.log(`\n5) waiting ${period + 45}s past expiry — sending NOTHING`);
+  await new Promise(r => setTimeout(r, (period + 45) * 1000));
   const after = await ask(agent, "post-expiry request");
 
   console.log("\n─────────────────────────────────────────");

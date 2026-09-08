@@ -26,6 +26,11 @@ Also: strip the template's assistant-configuration files (`AGENTS.md`, `CLAUDE.m
 `.claude/`, `.agents/`) on the way in, and write the two documents ETHGlobal's rules require
 from the start — `AI-USAGE.md` and this `prompts/` record — rather than retrofitting them.
 
+That last instruction was only half followed, and saying so is cheaper than being caught by
+it: `AI-USAGE.md` was written at this commit and kept current, but `prompts/` held nothing but
+a README until `9eb39e3`, so the step files were reconstructed from the diffs rather than
+written as the work happened. `prompts/README.md` states that plainly.
+
 ## Why it was given then
 
 If Blocky402 had turned out to be incompatible, every architectural choice downstream would

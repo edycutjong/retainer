@@ -4,13 +4,12 @@ import type { Network } from "@x402/core/types";
 import { ExactHederaScheme } from "@x402/hedera/exact/server";
 
 /**
- * x402 resource-server wiring for the pay-per-use template.
+ * x402 resource-server wiring for Retainer's paid route.
  *
  * This module owns the single {@link x402ResourceServer} instance used to build
  * payment requirements and to verify / settle payments. Verification and
- * settlement are delegated to the self-hosted Hedera facilitator (see
- * `facilitator/` and the root `docker-compose.yml`); this process never holds
- * keys or funds.
+ * settlement are delegated to the hosted Blocky402 facilitator on Hedera testnet
+ * ({@link FACILITATOR_URL}); this process never holds keys or funds.
  */
 
 /** x402 network identifier, e.g. `hedera:testnet`. */

@@ -83,20 +83,19 @@ leftover rather than as a feature:
 
 - `packages/nextjs/contracts/fileRegistryAbi.ts` — orphaned ABI, no longer imported by any
   shipped route
-- `packages/nextjs/.env.example` still carries `S3_*` and `FILE_REGISTRY_*` keys alongside the
-  Retainer ones; the only file that reads any of them is the orphaned ABI above, which nothing
-  imports
-- `packages/nextjs/package.json` still declares an `x402:buy` script pointing at
-  `scripts/x402-buy.ts`, which was deleted with the marketplace, and still depends on
-  `@aws-sdk/client-s3` / `@aws-sdk/s3-request-presigner`, which only the deleted MinIO client
-  used. The root `package.json` dropped its own `x402:buy`, `infra:*` and `facilitator:*`
-  scripts; the workspace one was missed
-- `README.md` is an inherited file, rewritten for Retainer as the template's product came out.
-- `RUNBOOK.md` is inherited and **has not been rewritten**. It still walks through the
-  template's marketplace end to end — `FileRegistry`, MinIO, `docker-compose`, the self-hosted
-  facilitator, `yarn infra:up` — all of which `c939840` deleted. It describes a product this
-  repository no longer contains and commands that no longer exist. Named here as the largest
-  outstanding piece of residue rather than left for a judge to find.
+- `packages/nextjs/package.json` still declares `@aws-sdk/client-s3` and
+  `@aws-sdk/s3-request-presigner`, which only the deleted MinIO client used. Nothing in the tree
+  imports either; they are dead weight in the lockfile, not a component
+- `packages/nextjs/utils/scaffold-hbar/hederaContractId.ts` — an inherited error string still
+  names `FILE_REGISTRY_HEDERA_CONTRACT_ID`, an environment variable that no longer exists
+
+Swept since: the `S3_*` and `FILE_REGISTRY_*` keys are gone from
+`packages/nextjs/.env.example`, and `packages/nextjs/package.json` no longer declares the
+`x402:buy` script that pointed at the deleted `scripts/x402-buy.ts`.
+- `README.md` and `RUNBOOK.md` are inherited files, both rewritten for Retainer as the
+  template's product came out (`RUNBOOK.md` in `9eb39e3`). Neither still documents the
+  marketplace; where they name `FileRegistry`, MinIO or `docker-compose` it is to say those
+  were removed.
 
 ---
 
@@ -112,7 +111,7 @@ and have been extended since.
 | `packages/hardhat/contracts/test/MockScheduleService.sol` | AI-written, human-reviewed |
 | `packages/hardhat/contracts/test/UnitProbe.sol` | AI-written, human-reviewed |
 | `packages/hardhat/deploy/01_deploy_retainer_access.ts` | AI-written, human-reviewed |
-| `packages/hardhat/test/RetainerAccess.test.ts` (38 tests) | AI-written, human-reviewed |
+| `packages/hardhat/test/RetainerAccess.test.ts` (40 tests) | AI-written, human-reviewed |
 | `packages/hardhat/scripts/proveRenewal.ts` | AI-written, human-reviewed |
 | `packages/hardhat/scripts/diagnose.ts` | AI-written, human-reviewed |
 | `packages/nextjs/app/api/retainer/access/route.ts` | AI-written, human-reviewed |
@@ -171,7 +170,13 @@ our four disclosure documents. (b) It said every file under *What is ours* was a
 `4a0ddc3`; those same four documents were added in it. (c) It listed `AGENTS.md`, `CLAUDE.md`,
 `.claude/` and `.agents/` as deleted within `4a0ddc3..HEAD`; they were stripped before the
 initial commit and appear nowhere in the history, so `git diff --name-status` does not show
-them. The same pass found `RUNBOOK.md` described here as rewritten for Retainer when it is
-still the template's marketplace runbook.
+them.
+
+**2026-09-08 — a correction that was itself wrong.** A later pass recorded here, and in
+`AI-USAGE.md`, that `RUNBOOK.md` had *not* been rewritten and still walked through the
+template's marketplace. That was false: `git diff --stat 4a0ddc3 HEAD -- RUNBOOK.md` reports
+391 insertions and 266 deletions, the file is titled *Retainer — verification runbook*, and it
+contains no `infra:up`, no MinIO setup and no `FileRegistry` steps. Both statements are removed.
+A correction log is only worth keeping if its own entries are checked.
 
 *Updated as the build proceeds.*

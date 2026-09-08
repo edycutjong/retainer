@@ -24,9 +24,11 @@ the least likely thing to notice.
 Self-renewal had stopped working, and **every unit test still passed.**
 
 The step-05 griefing fix gated `renew()` on `block.timestamp >= expiresAt`. Correct-looking, and
-wrong: on testnet the Hedera Schedule Service fired one second **before** `expirySecond`
-(scheduled `1788779925`, executed `1788779924`). The network's own scheduled call was being
-rejected by the defence built to stop attackers.
+wrong: on testnet the block timestamp the scheduled call saw was **behind** the second it was
+scheduled for. Against contract `0.0.10406002` the schedule was armed for
+`expiresAt = 1788779924`, the network executed it at consensus `1788779924.038958161`, and the
+call reverted anyway — `CONTRACT_REVERT_EXECUTED`, no `Renewed` event, no re-arm. The network's
+own scheduled call was being rejected by the defence built to stop attackers.
 
 The tests missed it because they advanced `PERIOD + 1` seconds and never landed on the boundary
 the real scheduler lands on. A test that only ever tests the comfortable side of a comparison is
@@ -61,7 +63,7 @@ Three scheduled executions ran in total, and the third is the interesting one:
 |---|---|---|
 | `1788780226.016366208` | 154,896,000 tinybar (1.54896 HBAR) | renewed **and** re-armed the next |
 | `1788780286.019735208` | 154,896,000 tinybar (1.54896 HBAR) | renewed **and** re-armed the next |
-| `1788780346.345418842` | 5,067,825 tinybar (0.0507 HBAR) | hit the gas-reserve guard, emitted `Lapsed`, did **not** re-arm |
+| `1788780346.345418842` | 5,067,825 tinybar (0.0507 HBAR) | charged the last period, then lapsed: emitted `Lapsed`, did **not** re-arm |
 
 The 30× gap is the whole cost story: re-arming the next renewal — the `scheduleCall` into
 `0x16b` — is roughly 97% of what a renewal costs. The renewal's own bookkeeping is the cheap

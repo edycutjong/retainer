@@ -21,14 +21,22 @@ They do not revert. They produce a successful transaction that paid the wrong nu
 
 ## The four bugs
 
-**1 — Units.** Hedera's EVM denominates `msg.value` and `address(this).balance` in **weibar**,
-while the network accounts in **tinybar** at 1:1e10. The contract stored tinybar and then passed
-those stored values straight into `call{value:}`. Every refund and every withdrawal therefore
-paid out ten orders of magnitude too little, without reverting. Worse, `_solvent()` compared a
-weibar balance against tinybar liabilities, so the invariant the docblock advertised could never
-fire — the safety net was structurally incapable of catching anything. Conversion now happens
-only at the EVM boundary: `_toTinybar` on the way in, `_toWeibar` on the way out, with the ratio
-written down in exactly one place. Sub-tinybar deposits are rejected rather than credited 1:1.
+**1 — Units.** Acting on the belief that Hedera's EVM denominates `msg.value` and
+`address(this).balance` in **weibar** while the network accounts in **tinybar** at 1:1e10, this
+commit added a 1e10 conversion at the EVM boundary — `_toTinybar` on the way in, a multiply back
+by `WEIBAR_PER_TINYBAR` on the way out — made `_solvent()` compare like with like, and rejected
+sub-tinybar deposits as dust instead of crediting them 1:1.
+
+> **Correction (`9eb39e3`).** The belief was wrong and this "fix" was itself the bug. Settled by
+> measurement rather than argument: `contracts/test/UnitProbe.sol` was deployed to testnet and
+> sent 2 HBAR as 2e18 on the wire; it reported `msg.value == 200000000` and
+> `address(this).balance == 200000000`. The JSON-RPC relay speaks weibar at the edge and converts
+> there — inside the EVM everything is already tinybar, so a Hedera contract should do no
+> conversion at all. The conversion added here overpaid every outbound transfer by ten orders of
+> magnitude. `9eb39e3` removed `_toTinybar`, `WEIBAR_PER_TINYBAR` and the `DustAmount` error, and
+> left the only 1e10 conversion in the JavaScript that puts a value on the wire. See
+> `11-units-measured-not-assumed.md`; the reasoning is kept here rather than rewritten, because
+> what a judge should be able to see is the wrong turn and the measurement that corrected it.
 
 **2 — The subscriber chose their own price.** Two tinybar bought a full access window and burned
 ~2 HBAR of the seller's gas reserve. Terms are now the **seller's** (`setTerms(price, period)`),

@@ -40,7 +40,7 @@ export async function resolveNativeContractId(args: {
   if (!contractId) {
     throw new Error(
       `Could not resolve Hedera contract id for ${args.evmAddress} on ${network}. ` +
-        "Redeploy with `yarn hardhat:deploy` or set FILE_REGISTRY_HEDERA_CONTRACT_ID.",
+        "Redeploy with `yarn hardhat:deploy` or set RETAINER_ACCESS_HEDERA_CONTRACT_ID.",
     );
   }
 

@@ -134,18 +134,24 @@ purely on-chain. They join in exactly one place: `subscribeFor()`.
 ### Money is kept in three pots
 
 `RetainerAccess` never mixes whose money is whose, and `_solvent()` asserts the contract's
-balance still covers all three after every state change:
+balance still covers all three at the end of every call that moves money out of a pot —
+`subscribe`/`subscribeFor`, `renew`, `cancel` and `withdraw`:
 
 | Pot | Whose | Spent on |
 |---|---|---|
-| `_owed` | the subscriber's | periods, refunded in full on `cancel()` |
+| `_owed` | the subscriber's | drawn down one period at a time; whatever is unspent is refunded on `cancel()` |
 | `revenue` | the seller's | withdrawable by `beneficiary` only |
 | `gasReserve` | the seller's | the network's fee for each scheduled execution |
 
-Amounts are stored in **tinybar** everywhere and converted only at the EVM boundary, because
-Hedera's EVM denominates `msg.value` and `address(this).balance` in **weibar**
-(1 tinybar = 1e10 weibar). Mixing them underpays a transfer by ten orders of magnitude and
-still looks like a successful transaction.
+Every amount is **tinybar**, and the contract converts nothing. Hedera has two denominations
+and the boundary is not where an Ethereum instinct puts it: the JSON-RPC relay speaks
+**weibar** (1 HBAR = 1e18), so the `value` you sign is 1e18-scaled, but inside the EVM
+`msg.value`, `address(this).balance` and the `value` of an outbound `call{value:}` are all
+**tinybar** (1 HBAR = 1e8). The relay converts at the edge. Adding the 1e10 conversion that
+Ethereum experience asks for overpays every transfer by ten orders of magnitude, and it still
+looks like a successful transaction. This was settled by measurement, not by reasoning:
+`packages/hardhat/contracts/test/UnitProbe.sol` was deployed to testnet, sent 2 HBAR as 2e18 on
+the wire, and reported `msg.value == 200000000`.
 
 ### Hedera Schedule Service integration
 
@@ -160,8 +166,10 @@ load-bearing — remove any one and the product breaks rather than degrades:
 
 Two details that only show up on a real network:
 
-- **The scheduler can fire early.** Observed on testnet executing at 1788779924 for a call
-  scheduled at 1788779925. A strict `block.timestamp >= expiresAt` gate therefore rejects the
+- **A scheduled call can see a block timestamp behind its own second.** Observed on testnet
+  against contract `0.0.10406002`: the schedule was armed for `expiresAt = 1788779924`, the
+  network executed it at consensus `1788779924.038958161`, and `renew()` still reverted with
+  `CONTRACT_REVERT_EXECUTED`. A strict `block.timestamp >= expiresAt` gate therefore rejects the
   network's own call and self-renewal silently stops. `renew()` allows `RENEW_SLACK = 30`
   seconds of earliness, and `MIN_PERIOD_SECONDS = 61` keeps that tolerance a strict minority
   of every period so `renew()` cannot be looped by a third party at the seller's expense.
@@ -171,15 +179,21 @@ Two details that only show up on a real network:
 
 ## Proof on Hedera testnet
 
-Contract `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A` —
-[HashScan](https://hashscan.io/testnet/contract/0.0.10406083).
+There are two deployments on testnet, and they are not interchangeable:
 
-> This is the first deployment, and it produced the measurements below. It predates the
-> current contract's constructor and ABI; a redeploy is pending, so do not expect the live
-> address to match `RetainerAccess.sol` as it stands in this repo today.
+| | Contract | What it is |
+|---|---|---|
+| **Current** | `0.0.10414167` / `0xd3A218AD4c817B14Cc754e4c996A95435155a27B` · [HashScan](https://hashscan.io/testnet/contract/0.0.10414167) | `RetainerAccess.sol` as it stands in this repo. It is what `packages/nextjs/contracts/deployedContracts.ts` points at, so it is the contract the resource server talks to. |
+| **First** | `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A` · [HashScan](https://hashscan.io/testnet/contract/0.0.10406083) | The deployment that produced every gas and fee measurement below. It predates the current constructor and ABI, so do not read it as a copy of the current source. |
+
+On the current deployment, one renewal has already executed unattended — `CONTRACTCALL`,
+`scheduled=true`, `SUCCESS` at `1788827767.015718559`, charged 153,816,728 tinybar to the
+contract — and `cancel()` then deleted the pending schedule `0.0.10414197` and returned its
+reserved gas. The cost measurements below are still quoted from the first deployment, because
+that is the run that was measured end to end.
 
 **An x402 payment settled through Blocky402:**
-[`0.0.7162784@1788780154.225876092`](https://hashscan.io/testnet/transaction/0.0.7162784@1788780154.225876092)
+[`0.0.7162784@1788780154.225876092`](https://hashscan.io/testnet/transaction/1788780164.857913104)
 
 **Three renewals the network executed on its own**, all `CONTRACTCALL` with `scheduled=true`
 and status `SUCCESS`, read back from the mirror node. No transaction was sent to trigger any
@@ -189,7 +203,7 @@ of them:
 |---|---|---|
 | [`1788780226.016366208`](https://hashscan.io/testnet/transaction/1788780226.016366208) | 154,896,000 tinybar = **1.54896 ℏ** | renewed **and** re-armed the next |
 | [`1788780286.019735208`](https://hashscan.io/testnet/transaction/1788780286.019735208) | 154,896,000 tinybar = **1.54896 ℏ** | renewed **and** re-armed the next |
-| [`1788780346.345418842`](https://hashscan.io/testnet/transaction/1788780346.345418842) | 5,067,825 tinybar = **0.0507 ℏ** | hit the gas-reserve guard, emitted `Lapsed`, did **not** re-arm |
+| [`1788780346.345418842`](https://hashscan.io/testnet/transaction/1788780346.345418842) | 5,067,825 tinybar = **0.0507 ℏ** | charged the last period, then found nothing left for a fifth: emitted `Lapsed("balance will not cover the next period")` and did **not** re-arm |
 
 Gas used on testnet: `subscribe()` **1,582,554** (limit 2,000,000), deploy **968,564**.
 
@@ -204,8 +218,8 @@ function, and it means:
 > renewal costs. The renewal's own bookkeeping is the cheap 0.05 HBAR part.
 
 The local Hardhat gas report, which mocks the scheduler and therefore excludes the
-system-contract call, puts `renew()` at **48,168–75,092** gas and `subscribe()` at
-**177,765–199,665**. The ~1.4M difference against testnet *is* the real `scheduleCall`. If you
+system-contract call, puts `renew()` at **48,247–77,085** gas and `subscribe()` at
+**137,552–205,722**. The ~1.4M difference against testnet *is* the real `scheduleCall`. If you
 only ever measure locally, you will not see the cost of this product at all.
 
 It gets worse before it gets better: **Hedera refunds at most 20% of an unused gas limit**, so
@@ -222,16 +236,21 @@ move it:
 
 1. **Right-size `RENEWAL_GAS_LIMIT`** toward the ~1.5M actually used. Recovers roughly a third.
 2. **Price a period above the renewal cost.** This is what actually makes it solvent, and it
-   is a product decision, not a code one: self-renewing access is worth selling above ~2 HBAR
-   per period, or not at all.
+   is a product decision, not a code one: break-even is the ~1.55 HBAR a re-arming renewal
+   actually costs, and the reserve drains at the 2 HBAR `RENEWAL_COST_ESTIMATE` the contract
+   holds back per armed renewal. Below that, the seller is paying for its own users.
 
 The full measurement — how Hedera charges a scheduled call, what the 1.549-vs-0.051 split
 proves, and each option sized honestly — is in [`docs/gas-economics.md`](docs/gas-economics.md).
+Every transaction, schedule and event behind the table above, with `curl` commands that
+re-verify all of it against the public mirror node, is in [`docs/proof.md`](docs/proof.md).
 
-A subscription therefore ends loudly rather than silently, in four cases, each with its own
-`Lapsed` reason: the subscriber cancels, their balance cannot cover the next period, the gas
-reserve cannot cover the next scheduled execution, or the network has no schedule capacity at
-that second.
+A subscription therefore ends loudly rather than silently. Renewal stops with a `Lapsed` event
+carrying its own reason string — `"balance will not cover the next period"`,
+`"gas reserve will not cover the next renewal"`, `"no schedule capacity at that second"`,
+`"network refused the schedule"`, or the defensive `"insufficient subscriber balance"` — and
+the first four are asserted by name in the test suite. A subscriber who cancels is a separate
+event, `Cancelled`: an ending they chose, not one that surprised them.
 
 ## Setup
 
@@ -268,9 +287,12 @@ RETAINER_PERIOD_SECONDS=3600 \
 yarn hardhat:deploy --network hederaTestnet
 ```
 
-The deploy sends **8 HBAR** with the constructor to seed the gas reserve — a self-renewing
-contract has to hold gas for its own future, and at ~1.55 HBAR per renewal that is about four
-of them. It writes the address and native `0.0.x` contract id into
+After deploying, the script seeds the gas reserve with **8 HBAR** (`RETAINER_RESERVE_HBAR`) in a
+separate `fundGasReserve()` call — not as constructor value, because Hedera credits a
+contract-create's initial balance outside the EVM frame, where a payable constructor cannot book
+it. A self-renewing contract has to hold gas for its own future; at the 2 HBAR
+`RENEWAL_COST_ESTIMATE` the contract holds back per armed renewal, 8 HBAR arms four of them.
+The script writes the address and native `0.0.x` contract id into
 `packages/nextjs/contracts/deployedContracts.ts`, which the resource server reads
 automatically.
 
@@ -307,18 +329,27 @@ yarn next:dev
 **4. Run the agent end to end**
 
 `packages/nextjs/scripts/retainer-agent.ts` is the demo as an agent experiences it: cold
-request → 402 → pay via x402 → 200 with `paidThisRequest:false` → wait past expiry sending
-nothing → 200 again. It reads `BUYER_PRIVATE_KEY` and `RETAINER_ACCESS_ADDRESS` from
-`~/.config/retainer/hedera.env` (credentials live outside the repo):
+request → 402 → pay via x402 → the server forwards that settled payment into `subscribeFor` →
+the same request again, now 200 with `paidThisRequest:false` → wait past expiry sending
+nothing → 200 again. It reads `BUYER_PRIVATE_KEY`, `BUYER_ACCOUNT_ID` and
+`RETAINER_ACCESS_ADDRESS` from `~/.config/retainer/hedera.env` (credentials live outside the
+repo):
 
 ```bash
 cd packages/nextjs
 BASE_URL=http://localhost:3000 yarn tsx scripts/retainer-agent.ts
 ```
 
+If `RETAINER_SERVER_KEY` is not configured the server cannot forward the payment, so the
+script opens the subscription itself with the agent's own key and says so — the rest of the
+run is unchanged. It waits the seller's own `periodSeconds` (plus 45s of slack) unless
+`PERIOD_SECONDS` overrides it.
+
 `packages/hardhat/scripts/proveRenewal.ts` is the narrower proof that produced the testnet
-measurements above: it subscribes with a short period, then *sends nothing* and waits for
-`Renewed` to fire on its own.
+measurements above: it reads the seller's terms off the contract, subscribes for three
+periods, then *sends nothing* and re-reads `subscriptionOf` to show the window extended on its
+own. It then cancels and compares the refund against the wallet balance, which is the
+regression guard for the tinybar/weibar bug.
 
 ## Tests
 
@@ -326,7 +357,7 @@ measurements above: it subscribes with a short period, then *sends nothing* and 
 yarn hardhat:test
 ```
 
-**38 passing** in `packages/hardhat/test/RetainerAccess.test.ts`, grouped by the thing each
+**40 passing** in `packages/hardhat/test/RetainerAccess.test.ts`, grouped by the thing each
 group protects: tinybar/weibar unit handling, the seller — not the subscriber — setting the
 price, x402 settlement crediting the on-chain subscription, the `renew()` time gate that
 closes the griefing vector, what the contract actually asks the scheduler to do, separation of
@@ -357,9 +388,10 @@ Full file-by-file accounting, including a correction to an earlier overstatement
 packages/hardhat/
   contracts/RetainerAccess.sol          the subscription + self-renewal contract
   contracts/test/MockScheduleService.sol local stand-in for system contract 0x16b
-  deploy/01_deploy_retainer_access.ts   deploys and seeds the gas reserve
+  contracts/test/UnitProbe.sol          the tinybar/weibar measurement, run on testnet
+  deploy/01_deploy_retainer_access.ts   deploys, then funds the gas reserve
   scripts/proveRenewal.ts               subscribe, send nothing, watch it renew
-  test/RetainerAccess.test.ts           38 tests
+  test/RetainerAccess.test.ts           40 tests
 
 packages/nextjs/
   app/api/retainer/access/route.ts      the x402 gate: 402, settle, subscribeFor
@@ -371,6 +403,8 @@ packages/nextjs/
 
 specs/                                  architecture and provenance
 prompts/                                the prompts that directed the build
+docs/proof.md                           every on-chain artifact, and how to re-verify it
+docs/gas-economics.md                   what an unattended renewal actually costs
 ```
 
 ## Licence

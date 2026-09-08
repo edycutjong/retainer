@@ -17,6 +17,11 @@ What *is* verbatim, and what judges should treat as the primary evidence, is the
 history itself: each commit message states what changed and why, and every claim in these
 files is checkable against the diff named at the top of it.
 
+Where a later step proved an earlier one wrong, the earlier file keeps what it said and carries
+a dated correction pointing forward — see the correction in `08-money-bugs-and-creditfor.md`,
+which `11-units-measured-not-assumed.md` overturned. Editing step 08 into having been right
+would remove the only interesting thing about that pair.
+
 ## Index
 
 | File | Step | Commit |
@@ -28,9 +33,10 @@ files is checkable against the diff named at the top of it.
 | `05-security-audit-and-money-separation.md` | Audit the contract; fix griefing, add revenue, split the pots | `b68b540` |
 | `06-x402-gated-route.md` | Put the contract behind an x402-gated HTTP route | `c047b63` |
 | `07-scheduler-fires-early-regression.md` | The security gate broke self-renewal; the tests missed it | `818c517` |
-| `08-money-bugs-and-creditfor.md` | Four unit/pricing bugs, and the payment→subscription join | `78025d2` |
+| `08-money-bugs-and-creditfor.md` | Four money bugs (one of them later reversed by step 11), and the payment→subscription join | `78025d2` |
 | `09-forward-settlement-subscribefor.md` | The server opens the subscription with the settled payment | `c0d7e08` |
 | `10-strip-the-template-product.md` | Remove the template's marketplace, ship Retainer's surface | `c939840` |
+| `11-units-measured-not-assumed.md` | Measure Hedera's value units on testnet; reverse step 08's conversion | `9eb39e3` |
 
 ## What is deliberately not in here
 

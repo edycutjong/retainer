@@ -119,7 +119,7 @@ typings generated into `packages/hardhat/typechain-types`.
 yarn hardhat:test
 ```
 
-Expect **38 passing**. The suite takes roughly two minutes; each test redeploys the contract
+Expect **40 passing**. The suite takes roughly two minutes; each test redeploys the contract
 and reinstalls the mock scheduler.
 
 The tests run against a forked Hedera environment (`HEDERA_FORKING=true`) with a
@@ -128,23 +128,23 @@ The tests run against a forked Hedera environment (`HEDERA_FORKING=true`) with a
 told to refuse a schedule, report no capacity, or refuse a delete, so the lapse paths are
 actually exercised rather than asserted.
 
-The nine groups map onto the things that were got wrong at least once during the build:
+The eight groups map onto the things that were got wrong at least once during the build:
 
 | Group | What it pins down |
 | --- | --- |
-| units — tinybar in storage, weibar on the wire | `msg.value` is weibar, storage is tinybar; a missing `1e10` conversion underpays a refund without reverting |
+| units — tinybar everywhere inside the contract | the relay converts weibar to tinybar at the edge, so the contract converts nothing; an *added* `1e10` conversion overpays a refund without reverting |
 | the seller sets the price, not the subscriber | `setTerms` is beneficiary-only; 2 tinybar must not buy a window that burns 2 HBAR of the seller's reserve |
 | x402 settlement credits the on-chain subscription | `creditFor` / `subscribeFor` — the join between the off-chain payment and on-chain state |
 | renew() time gate — the griefing fix | `renew()` is public but reverts before expiry, because scheduling costs the **contract** money |
 | what the contract asks the scheduler to do | `scheduleCall`, `deleteSchedule`, `hasScheduleCapacity` against the mock |
 | money separation | `_owed`, `revenue` and `gasReserve` never borrow from each other; `_solvent()` holds |
-| lapsing is loud, never silent | every way a subscription can end emits `Lapsed` with a reason |
+| lapsing is loud, never silent | every way a renewal can stop emits `Lapsed` with its own reason string — four of the contract's five reasons are asserted by name here; the fifth, `"insufficient subscriber balance"` inside `renew()`, is a defensive branch — `_armRenewal` already lapses the subscription one renewal earlier |
 | access gate | `hasAccess` across the window boundary, including surviving expiry when the renewal fires |
 
 `REPORT_GAS=true` is on, so a gas table prints at the end. Read it with one caveat: the mock
 scheduler is a normal contract, so those numbers **exclude the real `scheduleCall` into the
-Hedera system contract**. Locally `renew()` costs tens of thousands of gas and `subscribe()`
-around 0.2M. On testnet `subscribe()` used **1,582,554**. That ~1.4M difference is the
+Hedera system contract**. Locally `renew()` runs **48,247–77,085** gas and `subscribe()`
+**137,552–205,722**. On testnet `subscribe()` used **1,582,554**. That ~1.4M difference is the
 system-contract call, and it is the entire cost story of this project (§8).
 
 ---
@@ -165,10 +165,13 @@ You will be prompted for the password that decrypts `DEPLOYER_PRIVATE_KEY_ENCRYP
 What the deploy does (`packages/hardhat/deploy/01_deploy_retainer_access.ts`):
 
 - constructor `(beneficiary = deployer, pricePerPeriod, periodSeconds)`
-- sends **8 HBAR** as `value`, which seeds `gasReserve`. A self-renewing contract has to hold
-  gas for its own future, because the network charges the *contract* for each scheduled
-  execution. 8 HBAR arms about four renewals at the contract's `RENEWAL_COST_ESTIMATE` of
-  2 HBAR each
+- seeds `gasReserve` in a **separate** `fundGasReserve()` transaction after the deploy, with
+  `RETAINER_RESERVE_HBAR` HBAR (default **8**). Deliberately not a deploy `value`: Hedera
+  credits a contract-create's initial balance at the HAPI level, outside the EVM frame, so a
+  payable constructor sees `msg.value == 0` while the contract really does hold the money.
+  (`syncReserve()` exists to adopt a balance stranded that way.) A self-renewing contract has
+  to hold gas for its own future, because the network charges the *contract* for each scheduled
+  execution. 8 HBAR arms four renewals at the contract's `RENEWAL_COST_ESTIMATE` of 2 HBAR
 - `gasLimit: 4000000`. The deploy itself used **968,564** gas on testnet
 - resolves and records the native Hedera contract id (`0.0.x`) into the deployment JSON
 - regenerates `packages/nextjs/contracts/deployedContracts.ts` so the resource server finds the
@@ -178,6 +181,7 @@ Expected output includes:
 
 ```
 deploying "RetainerAccess" ... deployed at 0x...
+Funded gas reserve with 8 HBAR — arms 4 renewals
 Resolved Hedera contract id: 0.0.xxxxxxx
 📝 Updated TypeScript contract definition file on ../nextjs/contracts/deployedContracts.ts
 ```
@@ -190,16 +194,25 @@ Optionally verify the source:
 yarn hardhat:verify:testnet
 ```
 
-### The currently live deployment
+### The two deployments already on testnet
 
 ```
-0.0.10406083  /  0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A
-https://hashscan.io/testnet/contract/0.0.10406083
+current   0.0.10414167  /  0xd3A218AD4c817B14Cc754e4c996A95435155a27B
+          https://hashscan.io/testnet/contract/0.0.10414167
+measured  0.0.10406083  /  0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A
+          https://hashscan.io/testnet/contract/0.0.10406083
 ```
 
-This is the deployment that produced the measured proof in §8. It **predates this session's
-fixes and runs an older constructor and ABI** — a redeploy is pending. Deploy your own rather
-than pointing the current code at that address.
+`0.0.10414167` runs the current source and is the address recorded in
+`packages/nextjs/contracts/deployedContracts.ts`. One renewal has executed on it unattended
+(`CONTRACTCALL`, `scheduled=true`, `SUCCESS` at `1788827767.015718559`), and `cancel()` deleted
+its pending schedule `0.0.10414197` and reclaimed the reserved gas.
+
+`0.0.10406083` is the deployment that produced the measured proof in §8. It **predates the
+later contract fixes and runs an older constructor and ABI**, so do not point the current code
+at it.
+
+Deploying your own is still the honest way to verify this runbook end to end.
 
 ### Changing terms later
 
@@ -235,7 +248,8 @@ curl -s "localhost:3000/api/retainer/status?agent=0xYOUR_AGENT" | python3 -m jso
 ```
 
 Expect `contract` to be your deployed address, `hasAccess: false`, `active: false`,
-`nextRenewalSchedule: 0x0000…0000`, and `renewalsReserveCanArm` around `4`. If you get `503`,
+`nextRenewalSchedule: 0x0000…0000`, and `renewalsReserveCanArm: 4` at the default 8 HBAR
+reserve. If you get `503`,
 the server cannot find the contract — see §9.4.
 
 ---
@@ -270,11 +284,13 @@ Steps 1 and 2 of that script are the real paid request end to end: it takes the 
 payment payload with `@x402/hedera`, retries, and prints the settled Hedera transaction id plus
 its HashScan link.
 
-> **Known gap.** The script's step 3 then calls a two-argument `subscribe(price, period)` that
-> the current contract no longer exposes — terms are now set by the seller, and the resource
-> server opens the subscription itself the moment the payment settles. The script fails there
-> and does not reach its own steps 4–5. Its payment path is real and current; run the rest of
-> the walk with `curl` as below until the script is updated.
+Step 3 does not re-subscribe. With `RETAINER_SERVER_KEY` configured the resource server has
+already forwarded the settled payment into `subscribeFor(agent)`, so the script reads
+`subscription.opened` out of the paid response and prints that transaction; calling
+`subscribe()` itself there would revert with `AlreadyActive`. Only when the server has no key
+to forward with does the script open the subscription directly, with the agent's own key, and
+it says so on the way past. Steps 4 and 5 then run the post-expiry walk, waiting the seller's
+own `periodSeconds` read off the contract unless `PERIOD_SECONDS` overrides it.
 
 The server's own `200` response to the paid request is what to read:
 
@@ -325,8 +341,8 @@ That is the product.
 `packages/hardhat/scripts/proveRenewal.ts` proves it directly against the deployed contract:
 it reads the seller's terms, subscribes, records `expiresAt` and `balance`, waits without
 sending anything, and asserts the window extended and the balance drew down. It then cancels
-and checks the refund was paid **in full**, which is the regression guard for the
-tinybar/weibar conversion.
+and checks the refund was paid **in full**, which is the regression guard on the contract's
+unit handling.
 
 ```bash
 cd packages/hardhat
@@ -368,7 +384,7 @@ Three scheduled `CONTRACTCALL`s then executed with `scheduled=True`, `SUCCESS`:
 | --- | --- | --- |
 | `1788780226.016366208` | 154,896,000 tinybar = **1.54896 HBAR** | renewed **and re-armed** the next |
 | `1788780286.019735208` | 154,896,000 tinybar = **1.54896 HBAR** | renewed **and re-armed** the next |
-| `1788780346.345418842` | 5,067,825 tinybar = **0.0507 HBAR** | hit the gas-reserve guard, emitted `Lapsed`, did **not** re-arm |
+| `1788780346.345418842` | 5,067,825 tinybar = **0.0507 HBAR** | charged the last funded period, emitted `Lapsed("balance will not cover the next period")`, did **not** re-arm |
 
 The 30× gap between the first two and the third is the whole cost story. Re-arming the next
 renewal — the `scheduleCall` into `0x…016b` — is about **97%** of what a renewal costs. The
@@ -420,7 +436,7 @@ Other failures reported the same honest way, all of them from `subscribeFor`:
 | --- | --- |
 | `InsufficientBalance` | The forwarded value was below one period. `RETAINER_PRICE_TINYBAR` in `.env` does not match the contract's `pricePerPeriod` |
 | `AlreadyActive` | That agent already has an open subscription |
-| `DustAmount` | Forwarded value rounded to 0 tinybar |
+| `TermsNotSet` | The contract has no terms yet — see §9.3 |
 
 To recover a payment that settled without opening a subscription, credit the agent manually —
 `creditFor(agent)` is permissionless and only ever adds refundable money to the named agent's
@@ -429,8 +445,9 @@ pot — then have the agent (or the seller) open the subscription.
 ### 9.2 Gas reserve exhausted — `Lapsed("gas reserve will not cover the next renewal")`
 
 **Symptom.** A renewal succeeds, extends the window, and then access simply stops at the next
-expiry. The mirror node shows a cheap scheduled `CONTRACTCALL` (~0.05 HBAR instead of ~1.55)
-and no new schedule after it. `/api/retainer/status` shows `renewalsReserveCanArm: 0`, and the
+expiry. The mirror node shows a cheap scheduled `CONTRACTCALL` — the same early-exit shape as
+the 0.0507 HBAR call in §8, rather than the ~1.55 HBAR a re-arming renewal costs — and no new
+schedule after it. `/api/retainer/status` shows `renewalsReserveCanArm: 0`, and the
 next scheduled call emits:
 
 ```
@@ -439,8 +456,8 @@ Lapsed(agent, "gas reserve will not cover the next renewal")
 
 **Why.** `_armRenewal` checks `gasReserve >= RENEWAL_COST_ESTIMATE` (200,000,000 tinybar =
 2 HBAR) **before** scheduling, and lapses loudly rather than arming a call that cannot pay for
-itself. The third scheduled call in §8 is exactly this: it renewed, then found the reserve
-short and stopped. A subscription that ends this way ends visibly.
+itself. Note this is *not* what the third scheduled call in §8 did — that one lapsed on the
+subscriber's balance, not on the reserve. Both paths end the same way: visibly, with a reason.
 
 **Fix.** Top up the reserve. `fundGasReserve()` is `payable` and anyone may contribute. Any
 tool that can send a transaction will do; `cast` (Foundry) is shown because it is one line:
@@ -515,11 +532,13 @@ yarn hardhat run scripts/diagnose.ts --network hederaTestnet
 ## 10. Testnet notes
 
 - **ECDSA only.** x402 on Hedera requires ECDSA accounts.
-- **Units are asymmetric.** `value` on the wire is weibar (1 HBAR = 1e18); `msg.value` as the
-  contract sees it, and everything stored on-chain, is tinybar (1 HBAR = 1e8). A non-zero value
-  below 1e10 weibar is rejected outright by the relay. A conversion missed on the way *out*
-  underpays a refund by 1e10 without reverting — which is why §7.6 measures the refund against
-  a wallet balance.
+- **Units are asymmetric, and the boundary is the relay — not the contract.** `value` on the
+  wire is weibar (1 HBAR = 1e18); `msg.value` as the contract sees it, `address(this).balance`,
+  and the `value` of an outbound `call{value:}` are all tinybar (1 HBAR = 1e8). A non-zero value
+  below 1e10 weibar is rejected outright by the relay. So the contract converts nothing:
+  *adding* the 1e10 conversion an Ethereum instinct asks for overpays every transfer by ten
+  orders of magnitude, without reverting — which is why §7.6 measures the refund against a
+  wallet balance. Settled by measurement with `contracts/test/UnitProbe.sol` on testnet.
 - **The contract pays for its own future.** Scheduled executions are charged to the contract,
   not to whoever benefits. `gasReserve` is kept strictly separate from subscriber money
   (`_owed`) and seller revenue (`revenue`); `_solvent()` asserts the balance covers all three

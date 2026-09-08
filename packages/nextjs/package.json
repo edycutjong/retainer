@@ -1,7 +1,7 @@
 {
   "name": "@retainer/nextjs",
   "private": true,
-  "version": "1.0.8",
+  "version": "1.0.9",
   "author": "Edy Cu",
   "license": "MIT",
   "scripts": {

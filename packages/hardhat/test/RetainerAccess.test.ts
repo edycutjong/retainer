@@ -43,6 +43,41 @@ describe("RetainerAccess", () => {
 
   const subscribe = (who: any, periods: bigint = 10n) => c.connect(who).subscribe({ value: tinybar(PRICE * periods) });
 
+  const factory = () => ethers.getContractFactory("RetainerAccess");
+
+  describe("what the constructor will and will not accept", () => {
+    it("names the deployer as beneficiary when the deploy does not name one", async () => {
+      const d = await (await factory()).deploy(ethers.ZeroAddress, PRICE, PERIOD, CALLS);
+      expect(await d.beneficiary()).to.equal(seller.address);
+    });
+
+    it("books nothing into the gas reserve when the deploy carries no value", async () => {
+      // On Hedera a payable constructor usually sees msg.value == 0 even when the create carried
+      // money, because the balance is credited outside the EVM frame. Booking only what the frame
+      // actually saw is the honest reading; syncReserve() adopts the rest afterwards.
+      const d = await (await factory()).deploy(seller.address, PRICE, PERIOD, CALLS);
+      expect(await d.gasReserve()).to.equal(0n);
+      expect(await d.renewalsRemaining()).to.equal(0n);
+    });
+
+    it("may be deployed with no terms at all, and then sells nothing until the seller sets them", async () => {
+      const d = await (await factory()).deploy(seller.address, 0n, 0, 0);
+      expect(await d.pricePerPeriod()).to.equal(0n);
+      expect(await d.periodSeconds()).to.equal(0);
+      await expect(d.connect(agent).subscribe({ value: tinybar(PRICE) })).to.be.revertedWithCustomError(
+        d,
+        "TermsNotSet",
+      );
+    });
+
+    it("refuses to deploy with a period but no price", async () => {
+      await expect((await factory()).deploy(seller.address, 0n, PERIOD, CALLS)).to.be.revertedWithCustomError(
+        c,
+        "InvalidTerms",
+      );
+    });
+  });
+
   describe("units — tinybar in storage, weibar on the wire", () => {
     // The bug this locks out: `call{value: tinybar}` sends 1e10 times too little. It does not
     // revert, it does not emit anything unusual — it just silently underpays the refund.
@@ -101,6 +136,35 @@ describe("RetainerAccess", () => {
     });
   });
 
+  describe("the gas reserve pays for the contract's own future", () => {
+    it("lets anyone top up the reserve that funds scheduled executions", async () => {
+      const before = await c.gasReserve();
+      await expect(c.connect(stranger).fundGasReserve({ value: tinybar(RESERVE) }))
+        .to.emit(c, "GasReserveFunded")
+        .withArgs(stranger.address, RESERVE, before + RESERVE);
+      expect(await c.gasReserve()).to.equal(before + RESERVE);
+      expect(await c.renewalsRemaining()).to.equal(6n);
+    });
+
+    it("keeps a reserve top-up out of the subscriber pot entirely", async () => {
+      // The three pots only work if money cannot drift between them: gas is not refundable.
+      await c.connect(stranger).fundGasReserve({ value: tinybar(RESERVE) });
+      expect(await c.owed()).to.equal(0n);
+      const [balance] = await c.subscriptionOf(stranger.address);
+      expect(balance).to.equal(0n);
+    });
+
+    it("rejects a zero contribution to the reserve instead of booking nothing", async () => {
+      await expect(c.connect(stranger).fundGasReserve({ value: 0n })).to.be.revertedWithCustomError(c, "NothingToFund");
+    });
+
+    it("finds nothing to adopt when every tinybar the contract holds is already booked", async () => {
+      // syncReserve() exists for money that arrived without an EVM frame. When there is none,
+      // it must not quietly re-book the reserve as if it had found some.
+      await expect(c.syncReserve()).to.be.revertedWithCustomError(c, "NothingToFund");
+    });
+  });
+
   describe("the seller sets the price, not the subscriber", () => {
     it("charges the seller's price regardless of what the subscriber sends", async () => {
       await subscribe(agent, 10n);
@@ -124,6 +188,16 @@ describe("RetainerAccess", () => {
     it("rejects a period short enough to keep the renew() window permanently open", async () => {
       // periodSeconds <= 2 * RENEW_SLACK would let anyone loop renew() unattended.
       await expect(c.setTerms(PRICE, 30, CALLS)).to.be.revertedWithCustomError(c, "InvalidTerms");
+    });
+
+    it("rejects terms that give the resource away for nothing", async () => {
+      await expect(c.setTerms(0n, PERIOD, CALLS)).to.be.revertedWithCustomError(c, "InvalidTerms");
+    });
+
+    it("rejects terms whose period buys no calls at all", async () => {
+      // A period that buys zero calls is a charge for nothing: meter() would revert on the first
+      // request of a window the subscriber has already paid for.
+      await expect(c.setTerms(PRICE, PERIOD, 0)).to.be.revertedWithCustomError(c, "InvalidTerms");
     });
 
     it("does not reprice a subscription that is already running", async () => {
@@ -173,6 +247,47 @@ describe("RetainerAccess", () => {
       await c.connect(stranger).creditFor(agent.address, { value: tinybar(PRICE * 2n) });
       await expect(c.connect(agent).subscribe()).to.emit(c, "SubscriptionStarted");
       expect(await c.hasAccess(agent.address)).to.equal(true);
+    });
+  });
+
+  describe("one subscription per agent, and only on real terms", () => {
+    it("refuses to open a second subscription while one is already running", async () => {
+      // Otherwise the second subscribe would re-snapshot the terms and arm a second schedule,
+      // holding two slots of the seller's reserve for one window of access.
+      await subscribe(agent, 10n);
+      await expect(c.connect(agent).subscribe({ value: tinybar(PRICE) })).to.be.revertedWithCustomError(
+        c,
+        "AlreadyActive",
+      );
+    });
+
+    it("refuses to renew an agent that never subscribed", async () => {
+      await expect(c.connect(stranger).renew(stranger.address)).to.be.revertedWithCustomError(c, "NotSubscribed");
+    });
+
+    it("lapses at once when the deposit covers the first period but not the second", async () => {
+      // The lapse happens before anything is scheduled, so no reserve is held against a renewal
+      // that was never going to be affordable.
+      const reserve = await c.gasReserve();
+      await expect(c.connect(agent).subscribe({ value: tinybar(PRICE) }))
+        .to.emit(c, "Lapsed")
+        .withArgs(agent.address, "balance will not cover the next period");
+
+      const [, , , , active, schedule] = await c.subscriptionOf(agent.address);
+      expect(active).to.equal(false);
+      expect(schedule).to.equal(ethers.ZeroAddress);
+      expect(await c.gasReserve()).to.equal(reserve);
+      expect(await c.hasAccess(agent.address)).to.equal(true); // the period they paid for is theirs
+    });
+
+    it("cancels a lapsed subscription with nothing to refund and no schedule to release", async () => {
+      await c.connect(agent).subscribe({ value: tinybar(PRICE) }); // lapses immediately: 0 left
+      const reserve = await c.gasReserve();
+      const tx = c.connect(agent).cancel();
+      await expect(tx).to.emit(c, "Cancelled").withArgs(agent.address, 0n);
+      await expect(tx).to.not.emit(c, "RenewalCancelled");
+      expect(await c.gasReserve()).to.equal(reserve); // nothing was held, so nothing comes back
+      expect(await c.owed()).to.equal(0n);
     });
   });
 
@@ -247,6 +362,22 @@ describe("RetainerAccess", () => {
       expect(await c.gasReserve()).to.equal(during + RESERVE);
     });
 
+    it("does not reclaim gas for a schedule the network will no longer delete", async () => {
+      // A schedule that has already fired cannot be deleted. Crediting the reserve anyway would
+      // book gas the network has already spent, and the solvency check would eventually catch it.
+      await subscribe(agent, 10n);
+      const during = await c.gasReserve();
+      await (await scheduler()).setRefuseDelete(true);
+
+      const tx = c.connect(agent).cancel();
+      await expect(tx).to.not.emit(c, "RenewalCancelled");
+      await tx;
+
+      expect(await c.gasReserve()).to.equal(during);
+      const [, , , , , schedule] = await c.subscriptionOf(agent.address);
+      expect(schedule).to.equal(ethers.ZeroAddress); // the pointer is dropped either way
+    });
+
     it("subscribe→cancel churn does not drain the gas reserve", async () => {
       const before = await c.gasReserve();
       for (let i = 0; i < 5; i++) {
@@ -277,6 +408,11 @@ describe("RetainerAccess", () => {
     it("the beneficiary cannot withdraw the gas reserve", async () => {
       await subscribe(agent, 10n);
       await expect(c.withdraw(RESERVE)).to.be.revertedWithCustomError(c, "InsufficientBalance");
+    });
+
+    it("rejects a zero withdrawal instead of emitting a payout of nothing", async () => {
+      await subscribe(agent, 10n);
+      await expect(c.withdraw(0n)).to.be.revertedWithCustomError(c, "InsufficientBalance");
     });
 
     it("cancel refunds the remaining balance and cannot be replayed", async () => {
@@ -347,6 +483,38 @@ describe("RetainerAccess", () => {
         c,
         "ScheduleFailed",
       );
+    });
+  });
+
+  describe("failures that must be surfaced, never swallowed", () => {
+    it("reverts rather than losing the refund when the subscriber cannot receive payment", async () => {
+      // A subscriber can be a contract — subscribeFor() exists precisely so an agent's server can
+      // hold the subscription. If that account cannot take a bare value transfer, the refund must
+      // fail loudly instead of zeroing the books and dropping the money on the floor.
+      // Any deployed contract with no receive() serves as that account; reusing the scheduler mock
+      // avoids adding a contract whose only purpose is to refuse money.
+      const contractAccount = await (await ethers.getContractFactory("MockScheduleService")).deploy();
+      const who = await contractAccount.getAddress();
+      await network.provider.send("hardhat_impersonateAccount", [who]);
+      await network.provider.send("hardhat_setBalance", [who, "0x" + (10n ** 20n).toString(16)]);
+      const asContract = await ethers.getSigner(who);
+
+      await c.connect(asContract).subscribe({ value: tinybar(PRICE * 10n) });
+      await expect(c.connect(asContract).cancel()).to.be.revertedWithCustomError(c, "TransferFailed");
+      expect(await c.owed()).to.equal(PRICE * 9n); // still owed: a failed payout settles nothing
+
+      await network.provider.send("hardhat_stopImpersonatingAccount", [who]);
+    });
+
+    it("stops transacting once its native balance no longer covers the three pots", async () => {
+      // The mirror image of syncReserve(). Hedera moves a contract's balance outside the EVM frame
+      // in both directions — it credits a create's value, and it debits the contract for every
+      // scheduled execution. So the books really can outrun the balance with no EVM call to notice,
+      // which is why _solvent() is checked after every state change rather than trusted.
+      await subscribe(agent, 10n);
+      const liabilities = (await c.owed()) + (await c.revenue()) + (await c.gasReserve());
+      await network.provider.send("hardhat_setBalance", [await c.getAddress(), "0x" + (liabilities - 1n).toString(16)]);
+      await expect(c.connect(agent).cancel()).to.be.revertedWithCustomError(c, "Insolvent");
     });
   });
 

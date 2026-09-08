@@ -1,0 +1,100 @@
+name: E2E
+
+# End-to-end checks against a real production build, plus the two budgets that are easy to
+# blow without noticing: bundle size and Lighthouse.
+#
+# Separate from Lint (unit + contract tests + typecheck) and from Deploy (verify → Vercel →
+# live smoke test) on purpose. Those two gate correctness and the production promotion; this
+# one is slower, needs a browser, and should be able to fail without blocking a deploy of code
+# whose contracts and types are provably fine.
+#
+# Everything here runs with an empty environment. That is a property of the SUITE, not of the
+# product: Retainer has no offline or mock mode, and its paid path is proven against the live
+# Hedera testnet in docs/proof.md. What these assert is that the gate FAILS CLOSED when it is
+# not configured — a cold agent must never be served, whatever went wrong upstream.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Production build
+        run: yarn next:build
+
+      - name: Bundle budget
+        # First Load JS shared by all was 103 kB when this budget was set. The threshold is a
+        # tripwire for an accidental import of something enormous, not a target to optimise to.
+        run: |
+          set -euo pipefail
+          static="packages/nextjs/.next/static"
+          test -d "$static" || { echo "::error::no build output at $static"; exit 1; }
+          size=$(du -sk "$static" | cut -f1)
+          echo "static assets: ${size} KB"
+          echo "Static assets: ${size} KB" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$size" -gt 8000 ]; then
+            echo "::error::bundle ${size} KB exceeds the 8000 KB hard limit"
+            exit 1
+          elif [ "$size" -gt 6000 ]; then
+            echo "::warning::bundle ${size} KB exceeds the 6000 KB warning threshold"
+          fi
+
+      - name: Install Playwright browsers
+        run: yarn playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: yarn playwright test
+
+      - name: Upload the report when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  lighthouse:
+    name: Lighthouse (advisory)
+    runs-on: ubuntu-latest
+    # Advisory on purpose. A performance or SEO regression is worth knowing about; it is not
+    # worth blocking a submission on, and the thresholds in lighthouserc.json are all warnings.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Production build
+        run: yarn next:build
+
+      - name: Lighthouse CI
+        run: yarn lighthouse

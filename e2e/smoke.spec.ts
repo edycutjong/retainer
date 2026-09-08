@@ -22,14 +22,16 @@ test.describe("smoke — the server stands up with no configuration", () => {
     expect(response?.status()).toBe(200);
   });
 
-  test("answers 404 for a route that does not exist rather than 500", async ({ request }) => {
+  test("answers 404 for a route that does not exist rather than 500", async ({
+    request,
+  }) => {
     const response = await request.get("/definitely-not-a-route");
     expect(response.status()).toBe(404);
   });
 
   test("the live view reports no uncaught page error", async ({ page }) => {
     const pageErrors: string[] = [];
-    page.on("pageerror", error => pageErrors.push(error.message));
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
     expect(pageErrors).toEqual([]);

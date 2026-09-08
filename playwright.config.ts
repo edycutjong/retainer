@@ -37,11 +37,13 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
   ],
-  // Skipped when E2E_BASE_URL points somewhere already running (CI builds once, then serves).
+  // Serves an existing production build; it does not create one. `yarn e2e` builds first, and
+  // CI builds in its own step so the bundle-size gate has something to measure. Skipped
+  // entirely when E2E_BASE_URL points at a server that is already running.
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: `yarn next:build && yarn workspace @retainer/nextjs serve --port ${port}`,
+        command: `yarn workspace @retainer/nextjs serve --port ${port}`,
         url: baseURL,
         reuseExistingServer: false,
         timeout: 300_000,

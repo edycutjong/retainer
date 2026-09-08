@@ -15,7 +15,15 @@
   --j-accent: #0891b2;
   --j-accent-fg: #ffffff;
 
+  /* `width: 100%` + `min-width: 0` together, not just `max-width`.
+     This block is a flex item of the app shell, and a flex item sizes to its content-based
+     minimum unless told otherwise — the widest <pre> here is a curl command, so without these
+     two lines the page renders 864px wide inside a 375px viewport and scrolls sideways.
+     e2e/responsive.spec.ts asserts it does not. */
+  width: 100%;
+  min-width: 0;
   max-width: 54rem;
+  box-sizing: border-box;
   margin: 0 auto;
   padding: 3rem 1.25rem 5rem;
   color: var(--j-fg);
@@ -81,9 +89,13 @@
   color: var(--j-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
+  /* Contract addresses and mirror-node URLs are long unbreakable tokens. Without this they
+     push the document 39px wider than a 375px viewport — measured, then fixed. */
+  overflow-wrap: anywhere;
 }
 
 .page code {
+  overflow-wrap: anywhere;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85em;
   background: var(--j-panel);
@@ -93,6 +105,8 @@
 }
 
 .pre {
+  max-width: 100%;
+  min-width: 0;
   background: var(--j-panel);
   border: 1px solid var(--j-line);
   border-radius: 8px;
@@ -106,6 +120,10 @@
 }
 
 .pre code {
+  /* Inside a scrolling command block, breaking a line would corrupt the command. Undo the
+     page-level wrapping here and let the container scroll instead. */
+  overflow-wrap: normal;
+  word-break: normal;
   background: none;
   border: 0;
   padding: 0;
@@ -131,6 +149,8 @@
 }
 
 .tableWrap {
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   margin: 0 0 1.25rem;
 }

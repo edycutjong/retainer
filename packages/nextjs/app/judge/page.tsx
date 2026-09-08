@@ -92,7 +92,7 @@ export default function JudgePage() {
 
       <h1 className={styles.claim}>Your agent&rsquo;s access renews itself on-chain at 3am, with nobody awake.</h1>
 
-      <p className={styles.lede}>
+      <p className={styles.lede} data-testid="judge-lede">
         An x402-gated metered data feed on Hedera whose access window is an on-chain subscription that the{" "}
         <strong>Hedera Schedule Service</strong> (HIP-1215, system contract <code>0x16b</code>) extends by itself. The
         agent signs exactly one thing — the first payment. Nothing signs anything again.

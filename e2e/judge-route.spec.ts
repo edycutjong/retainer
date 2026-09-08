@@ -11,10 +11,14 @@ import { expect, test } from "@playwright/test";
 
 const CLAIM = "renews itself on-chain at 3am";
 const PAGE = '[data-testid="judge"]';
-const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${process.env.E2E_PORT ?? 3000}`;
+const baseURL =
+  process.env.E2E_BASE_URL ??
+  `http://localhost:${process.env.E2E_PORT ?? 3000}`;
 
 test.describe("/judge — reachable with nothing", () => {
-  test("returns 200 to a bare HTTP request with no cookies and no session", async ({ playwright }) => {
+  test("returns 200 to a bare HTTP request with no cookies and no session", async ({
+    playwright,
+  }) => {
     // A brand-new request context: no storage state, no cookies, nothing inherited from any
     // other test. This is what someone opening the link from a submission page gets.
     const anonymous = await playwright.request.newContext({
@@ -37,7 +41,9 @@ test.describe("/judge — reachable with nothing", () => {
     expect(new URL(page.url()).pathname).toBe("/judge");
   });
 
-  test("carries the claim, the receipts and the limitations a judge came for", async ({ page }) => {
+  test("carries the claim, the receipts and the limitations a judge came for", async ({
+    page,
+  }) => {
     await page.goto("/judge");
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText(CLAIM);
@@ -48,20 +54,36 @@ test.describe("/judge — reachable with nothing", () => {
     await expect(page.getByText("202,059").first()).toBeVisible();
 
     // The limitations section exists and leads with the unflattering one.
-    await expect(page.getByRole("heading", { name: "Honest limitations" })).toBeVisible();
-    await expect(page.getByText("loses money on every renewal").first()).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Honest limitations" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("loses money on every renewal").first(),
+    ).toBeVisible();
 
     // The verify-it-yourself links, which are what make the receipts checkable.
-    await expect(page.getByRole("link", { name: /hashscan\.io\/testnet\/contract/ }).first()).toBeVisible();
+    await expect(
+      page
+        .getByRole("link", { name: /hashscan\.io\/testnet\/contract/ })
+        .first(),
+    ).toBeVisible();
   });
 
-  test("every outbound link is absolute and https, so nothing dead-ends off a fork", async ({ page }) => {
+  test("every outbound link is absolute and https, so nothing dead-ends off a fork", async ({
+    page,
+  }) => {
     await page.goto("/judge");
-    const hrefs = await page.locator(`${PAGE} a[href]`).evaluateAll(nodes => nodes.map(n => n.getAttribute("href") ?? ""));
+    // evaluateAll does not auto-wait, so wait for the page to exist before counting.
+    await page.waitForSelector(`${PAGE} a[href]`);
+    const hrefs = await page
+      .locator(`${PAGE} a[href]`)
+      .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href") ?? ""));
 
     expect(hrefs.length).toBeGreaterThan(5);
     for (const href of hrefs) {
-      expect(href, `link "${href}" should be an absolute https URL`).toMatch(/^https:\/\//);
+      expect(href, `link "${href}" should be an absolute https URL`).toMatch(
+        /^https:\/\//,
+      );
     }
   });
 });

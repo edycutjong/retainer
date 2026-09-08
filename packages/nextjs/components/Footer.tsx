@@ -38,7 +38,7 @@ export const Footer = () => {
         <ul className="menu menu-horizontal w-full">
           <div className="flex justify-center items-center gap-3 text-sm w-full text-base-content/60">
             <a
-              href="https://github.com/hedera-dev/scaffold-hbar"
+              href="https://github.com/edycutjong/retainer"
               target="_blank"
               rel="noreferrer"
               className="link hover:text-primary"
@@ -58,8 +58,13 @@ export const Footer = () => {
               </a>
             </span>
             <span className="opacity-30">|</span>
-            <a href="https://docs.hedera.com/" target="_blank" rel="noreferrer" className="link hover:text-primary">
-              Docs
+            <a
+              href="https://hashscan.io/testnet/contract/0.0.10415845"
+              target="_blank"
+              rel="noreferrer"
+              className="link hover:text-primary"
+            >
+              Contract on HashScan
             </a>
           </div>
         </ul>

@@ -211,11 +211,15 @@ const Home: NextPage = () => {
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className={`font-mono text-5xl tabular-nums ${soon ? "text-warning" : ""}`}>
+                    <span
+                      className={`font-mono text-5xl tabular-nums ${
+                        !status.hasAccess ? "text-base-content/30" : soon ? "text-warning" : ""
+                      }`}
+                    >
                       {clock(remaining)}
                     </span>
-                    <span className="text-xs uppercase tracking-widest text-base-content/50 mt-1">
-                      until this window closes
+                    <span className="text-xs uppercase tracking-widest text-base-content/50 mt-1 px-6">
+                      {status.hasAccess ? "until this window closes" : "window closed"}
                     </span>
                   </div>
                 </div>
@@ -223,9 +227,13 @@ const Home: NextPage = () => {
                 <p className="text-sm text-base-content/60 max-w-md">
                   {flash
                     ? "It renewed itself. Nothing was paid, nothing was signed."
-                    : soon
-                      ? "About to expire — and about to keep working anyway."
-                      : "Leave this open past zero. The window will extend itself."}
+                    : !status.hasAccess
+                      ? status.active
+                        ? "The window lapsed. A renewal is armed but the balance ran out — fund it and the loop resumes."
+                        : "No open window. A cold request here is charged once, and then this starts."
+                      : soon
+                        ? "About to expire — and about to keep working anyway."
+                        : "Leave this open past zero. The window will extend itself."}
                 </p>
               </div>
             </section>

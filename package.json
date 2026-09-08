@@ -51,6 +51,8 @@
   },
   "packageManager": "yarn@3.2.3",
   "devDependencies": {
+    "@lhci/cli": "^0.15.0",
+    "@playwright/test": "^1.55.0",
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10"
   },

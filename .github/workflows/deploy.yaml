@@ -18,6 +18,9 @@ jobs:
   verify:
     name: Verify
     runs-on: ubuntu-latest
+    # Least privilege: these jobs only read the repo.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +45,9 @@ jobs:
     name: Deploy to Vercel
     needs: verify
     runs-on: ubuntu-latest
+    # Least privilege: these jobs only read the repo.
+    permissions:
+      contents: read
     environment:
       name: production
       url: ${{ steps.deploy.outputs.url }}

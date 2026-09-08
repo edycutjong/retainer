@@ -28,6 +28,9 @@ jobs:
   e2e:
     name: Playwright
     runs-on: ubuntu-latest
+    # Least privilege: these jobs only read the repo.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -79,6 +82,9 @@ jobs:
   lighthouse:
     name: Lighthouse (advisory)
     runs-on: ubuntu-latest
+    # Least privilege: these jobs only read the repo.
+    permissions:
+      contents: read
     # Advisory on purpose. A performance or SEO regression is worth knowing about; it is not
     # worth blocking a submission on, and the thresholds in lighthouserc.json are all warnings.
     continue-on-error: true

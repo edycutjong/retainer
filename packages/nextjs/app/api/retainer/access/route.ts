@@ -50,8 +50,31 @@ export const dynamic = "force-dynamic";
 
 /** Where subscription payments go. The seller's Hedera account. */
 const PAY_TO = process.env.RETAINER_PAY_TO ?? "";
+
+/**
+ * Read a positive integer out of the environment.
+ *
+ * Deliberately lazy and forgiving. Parsing env into a BigInt at module scope means a value that
+ * is empty, quoted or padded throws while Next.js is collecting page data — which does not fail
+ * the one request that is misconfigured, it fails the entire build. That happened: a malformed
+ * value took the whole route down at deploy time with a stack trace that named no variable.
+ *
+ * Reading it inside the request instead turns a bad value back into what it is: a
+ * misconfiguration of one setting, recoverable by falling back to the documented default.
+ */
+function envBigInt(name: string, fallback: bigint): bigint {
+  const raw = process.env[name]?.trim().replace(/^["']|["']$/g, "");
+  if (!raw) return fallback;
+  if (!/^\d+$/.test(raw)) {
+    console.warn(`[api/retainer/access] ${name}="${raw}" is not a positive integer; using ${fallback}`);
+    return fallback;
+  }
+  return BigInt(raw);
+}
+
 /** Price of one period, in tinybar. Must match the contract's own terms. */
-const PERIOD_PRICE_TINYBAR = BigInt(process.env.RETAINER_PRICE_TINYBAR ?? "100000000");
+const periodPriceTinybar = () => envBigInt("RETAINER_PRICE_TINYBAR", 100_000_000n);
+
 /**
  * How many periods one x402 payment buys.
  *
@@ -59,9 +82,7 @@ const PERIOD_PRICE_TINYBAR = BigInt(process.env.RETAINER_PRICE_TINYBAR ?? "10000
  * every period after it is charged by a renewal the network executes on its own. Selling a
  * single period would mean the interesting thing never happens.
  */
-const PERIODS_PER_PURCHASE = BigInt(process.env.RETAINER_PERIODS_PER_PURCHASE ?? "3");
-/** What the 402 actually charges. */
-const PRICE_TINYBAR = (PERIOD_PRICE_TINYBAR * PERIODS_PER_PURCHASE).toString();
+const periodsPerPurchase = () => envBigInt("RETAINER_PERIODS_PER_PURCHASE", 3n);
 
 /**
  * Build the 402 challenge. The body the resource server produces is also what goes in the
@@ -187,7 +208,7 @@ export async function GET(req: Request) {
         scheme: "exact",
         network: X402_NETWORK,
         payTo: PAY_TO,
-        price: { asset: HBAR_ASSET, amount: PRICE_TINYBAR },
+        price: { asset: HBAR_ASSET, amount: (periodPriceTinybar() * periodsPerPurchase()).toString() },
         maxTimeoutSeconds: MAX_TIMEOUT_SECONDS,
       },
     ],
@@ -238,7 +259,7 @@ export async function GET(req: Request) {
   let subscriptionTx: string | undefined;
   let subscriptionError: string | undefined;
   try {
-    subscriptionTx = await openSubscriptionFor(agent, PERIOD_PRICE_TINYBAR * PERIODS_PER_PURCHASE);
+    subscriptionTx = await openSubscriptionFor(agent, periodPriceTinybar() * periodsPerPurchase());
   } catch (error) {
     // The payment is already captured, so the request is still served. Report the failure
     // honestly rather than implying a subscription exists when it does not.
@@ -259,7 +280,7 @@ export async function GET(req: Request) {
       ? {
           opened: true,
           transaction: subscriptionTx,
-          periodsPurchased: Number(PERIODS_PER_PURCHASE),
+          periodsPurchased: Number(periodsPerPurchase()),
           why: "the settled payment was forwarded into RetainerAccess; the first renewal is scheduled",
           nextStep: "Ask again after this window expires. It will still be 200, and nothing will have been paid.",
         }

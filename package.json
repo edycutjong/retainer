@@ -1,6 +1,8 @@
 {
   "name": "retainer",
   "version": "1.0.4",
+  "author": "Edy Cu",
+  "license": "MIT",
   "private": true,
   "workspaces": {
     "packages": [

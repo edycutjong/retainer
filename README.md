@@ -19,7 +19,6 @@ Hedera Schedule Service extends by itself.</p>
 [![Live Contract](https://img.shields.io/badge/⛓️_HashScan-0.0.10415845-8b5cf6?style=for-the-badge)](https://hashscan.io/testnet/contract/0.0.10415845)
 [![Built for ETHOnline 2026](https://img.shields.io/badge/ETHGlobal-ETHOnline_2026-1f6feb?style=for-the-badge)](https://ethglobal.com/events/ethonline2026)
 [![For judges](https://img.shields.io/badge/⚖️_For-Judges-f59e0b?style=for-the-badge)](https://retainer.edycu.dev/judge)
-[![Release](https://img.shields.io/github/v/release/edycutjong/retainer?style=for-the-badge&color=8259ef&label=release)](https://github.com/edycutjong/retainer/releases/latest)
 
 <br/>
 
@@ -30,7 +29,14 @@ Hedera Schedule Service extends by itself.</p>
 ![Hedera](https://img.shields.io/badge/Hedera-testnet-000000?style=flat&logo=hedera&logoColor=white)
 ![x402](https://img.shields.io/badge/x402-exact_scheme-06b6d4?style=flat)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/edycutjong/retainer/actions/workflows/lint.yaml/badge.svg)](https://github.com/edycutjong/retainer/actions/workflows/lint.yaml)
+[![release](https://img.shields.io/github/v/release/edycutjong/retainer?style=flat&color=8259ef&label=release)](https://github.com/edycutjong/retainer/releases/latest)
+
+[![lint](https://img.shields.io/github/actions/workflow/status/edycutjong/retainer/lint.yaml?branch=main&style=flat&label=lint)](https://github.com/edycutjong/retainer/actions/workflows/lint.yaml)
+[![e2e](https://img.shields.io/github/actions/workflow/status/edycutjong/retainer/e2e.yaml?branch=main&style=flat&label=e2e)](https://github.com/edycutjong/retainer/actions/workflows/e2e.yaml)
+[![codeql](https://img.shields.io/github/actions/workflow/status/edycutjong/retainer/codeql.yaml?branch=main&style=flat&label=codeql)](https://github.com/edycutjong/retainer/actions/workflows/codeql.yaml)
+[![secrets](https://img.shields.io/github/actions/workflow/status/edycutjong/retainer/gitleaks.yaml?branch=main&style=flat&label=secrets)](https://github.com/edycutjong/retainer/actions/workflows/gitleaks.yaml)
+[![deploy](https://img.shields.io/github/actions/workflow/status/edycutjong/retainer/deploy.yaml?branch=main&style=flat&label=deploy)](https://github.com/edycutjong/retainer/actions/workflows/deploy.yaml)
+[![release ci](https://img.shields.io/github/actions/workflow/status/edycutjong/retainer/release.yaml?branch=main&style=flat&label=release%20ci)](https://github.com/edycutjong/retainer/actions/workflows/release.yaml)
 
 </div>
 

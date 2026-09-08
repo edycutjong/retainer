@@ -168,13 +168,27 @@ export async function openSubscriptionFor(agent: Address, tinybar: bigint): Prom
   const address = getRetainerAddress();
   if (!address) throw new RetainerNotDeployedError();
 
-  return await getWallet().writeContract({
+  const hash = await getWallet().writeContract({
     address,
     abi: RETAINER_ABI,
     functionName: "subscribeFor",
     args: [agent],
+    // `value` on the wire is weibar; the EVM will see tinybar. This is the ONLY place the
+    // project converts — the contract itself never does. See docs/hedera-units.md.
     value: tinybar * WEIBAR_PER_TINYBAR,
   });
+
+  // Wait for it to be mined before telling the caller access is open.
+  //
+  // Without this the route answers with a transaction that has not landed, so the agent's very
+  // next request still reads no subscription on-chain, gets another 402, and pays a second time
+  // for access it has already bought. Hedera reaches finality in ~3s, so the wait is cheap and
+  // the alternative is double-charging.
+  const receipt = await getClient().waitForTransactionReceipt({ hash, timeout: 30_000 });
+  if (receipt.status !== "success") {
+    throw new Error(`subscribeFor reverted (tx ${hash})`);
+  }
+  return hash;
 }
 
 /** Top up an existing subscriber's refundable balance from a settled payment. */

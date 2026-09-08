@@ -30,6 +30,7 @@ export const SwitchTheme = ({ className }: { className?: string }) => {
         id="theme-toggle"
         type="checkbox"
         className="toggle bg-secondary toggle-primary hover:bg-accent transition-all"
+        aria-label={isDarkMode ? "Switch to the light theme" : "Switch to the dark theme"}
         onChange={handleToggle}
         checked={isDarkMode}
       />

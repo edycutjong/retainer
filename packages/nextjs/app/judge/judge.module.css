@@ -4,16 +4,21 @@
  * Deliberately a CSS module with its own colour tokens rather than the app's theme utilities:
  * this page has exactly one job — to still render correctly for someone triaging submissions —
  * and it should not be able to break because the product's design system changed underneath it.
+ *
+ * The values are the landing page's own (midnight plate, armed violet as the link colour, the
+ * same mono face), copied here rather than referenced, so the two read as one product while this
+ * file stays independent of the other.
  */
 
 .page {
   --j-bg: #ffffff;
-  --j-fg: #14181f;
-  --j-muted: #5b6472;
-  --j-line: #e3e7ed;
-  --j-panel: #f6f8fa;
-  --j-accent: #0891b2;
+  --j-fg: #0f172a;
+  --j-muted: #475569;
+  --j-line: rgba(15, 23, 42, 0.1);
+  --j-panel: #f4f6fb;
+  --j-accent: #6d3fe0; /* 6.11:1 on white, 5.65:1 on the panel */
   --j-accent-fg: #ffffff;
+  --j-mono: var(--font-jbm), "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* `width: 100%` + `min-width: 0` together, not just `max-width`.
      This block is a flex item of the app shell, and a flex item sizes to its content-based
@@ -34,18 +39,19 @@
 
 @media (prefers-color-scheme: dark) {
   .page {
-    --j-bg: #0d1117;
-    --j-fg: #e6edf3;
-    --j-muted: #9198a1;
-    --j-line: #2a313c;
-    --j-panel: #161b22;
-    --j-accent: #22d3ee;
+    --j-bg: #0b1020;
+    --j-fg: #f4f6fb;
+    --j-muted: #a3acc2;
+    --j-line: rgba(255, 255, 255, 0.1);
+    --j-panel: #12172a;
+    --j-accent: #c4b5fd; /* 10.26:1 on the midnight page */
     --j-accent-fg: #06202a;
   }
 }
 
 .eyebrow {
   font-size: 0.75rem;
+  font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--j-muted);
@@ -88,20 +94,31 @@
 .page a {
   color: var(--j-accent);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  transition: text-decoration-color 160ms;
   /* Contract addresses and mirror-node URLs are long unbreakable tokens. Without this they
      push the document 39px wider than a 375px viewport — measured, then fixed. */
   overflow-wrap: anywhere;
 }
 
+.page a:hover {
+  text-decoration-color: currentColor;
+}
+
+.page a:focus-visible {
+  outline: 2px solid var(--j-accent);
+  outline-offset: 2px;
+}
+
 .page code {
   overflow-wrap: anywhere;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--j-mono);
   font-size: 0.85em;
   background: var(--j-panel);
   border: 1px solid var(--j-line);
-  border-radius: 4px;
-  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  padding: 0.1em 0.4em;
 }
 
 .pre {
@@ -109,10 +126,10 @@
   min-width: 0;
   background: var(--j-panel);
   border: 1px solid var(--j-line);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 0.85rem 1rem;
   overflow-x: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--j-mono);
   font-size: 0.8rem;
   line-height: 1.6;
   margin: 0 0 1rem;
@@ -179,7 +196,7 @@
 .note {
   background: var(--j-panel);
   border-left: 3px solid var(--j-accent);
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 8px 8px 0;
   padding: 0.85rem 1rem;
   margin: 0 0 1.25rem;
   font-size: 0.9rem;

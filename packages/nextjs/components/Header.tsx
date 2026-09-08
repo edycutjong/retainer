@@ -4,46 +4,34 @@ import React, { useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bars3Icon, BugAntIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon } from "@heroicons/react/24/outline";
 import { WalletConnectButton } from "~~/components/scaffold-hbar";
 import { useOutsideClick } from "~~/hooks/scaffold-hbar";
 
-type HeaderMenuLink = {
-  label: string;
-  href: string;
-  icon?: React.ReactNode;
-};
+type HeaderMenuLink = { label: string; href: string; path: string };
 
+/**
+ * Section navigation. `path` is what "current page" is matched against; hash links share the
+ * landing page's path, so only the page itself is ever marked current.
+ */
 export const menuLinks: HeaderMenuLink[] = [
-  {
-    label: "Home",
-    href: "/",
-  },
-  {
-    label: "Contract",
-    href: "/debug",
-    icon: <BugAntIcon className="h-4 w-4" />,
-  },
+  { label: "How it works", href: "/#how", path: "/" },
+  { label: "Live view", href: "/#live", path: "/" },
+  { label: "Proof", href: "/#proof", path: "/" },
+  { label: "For judges", href: "/judge", path: "/judge" },
+  { label: "Contract", href: "/debug", path: "/debug" },
 ];
 
-export const HeaderMenuLinks = () => {
+const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => {
   const pathname = usePathname();
-
   return (
     <>
-      {menuLinks.map(({ label, href, icon }) => {
-        const isActive = pathname === href;
+      {menuLinks.map(({ label, href, path }) => {
+        const isPage = pathname === path && !href.includes("#");
         return (
           <li key={href}>
-            <Link
-              href={href}
-              passHref
-              className={`${
-                isActive ? "bg-primary/10 text-primary font-semibold" : "hover:bg-primary/5"
-              } py-1.5 px-3 text-sm rounded-full gap-2 grid grid-flow-col transition-colors`}
-            >
-              {icon}
-              <span>{label}</span>
+            <Link href={href} aria-current={isPage ? "page" : undefined} onClick={onNavigate}>
+              {label}
             </Link>
           </li>
         );
@@ -53,49 +41,51 @@ export const HeaderMenuLinks = () => {
 };
 
 /**
- * Site header
+ * Site header.
+ *
+ * The product's own mark, not the chain's: Hedera is named in the footer where it belongs. The
+ * wallet button is the template's and unchanged — connecting a wallet fills the live view's
+ * address, which is the one thing a wallet is for on this page.
  */
 export const Header = () => {
   const burgerMenuRef = useRef<HTMLDetailsElement>(null);
   useOutsideClick(burgerMenuRef, () => {
     burgerMenuRef?.current?.removeAttribute("open");
   });
+  const close = () => burgerMenuRef?.current?.removeAttribute("open");
 
   return (
-    <div className="sticky lg:static top-0 navbar bg-base-100 min-h-0 shrink-0 justify-between z-20 shadow-sm border-b border-base-300 px-0 sm:px-2">
-      <div className="navbar-start w-auto lg:w-1/2">
-        <details className="dropdown" ref={burgerMenuRef}>
-          <summary className="ml-1 btn btn-ghost lg:hidden hover:bg-transparent">
-            <Bars3Icon className="h-1/2" />
-          </summary>
-          <ul
-            className="menu menu-compact dropdown-content mt-3 p-2 shadow-sm bg-base-100 rounded-box w-52"
-            onClick={() => {
-              burgerMenuRef?.current?.removeAttribute("open");
-            }}
-          >
-            <HeaderMenuLinks />
-          </ul>
-        </details>
-        <Link href="/" passHref className="hidden lg:flex items-center gap-3 ml-4 mr-6 shrink-0">
-          <div className="flex relative w-9 h-9">
-            <Image alt="Hedera icon" className="cursor-pointer dark:hidden" fill src="/Hedera-Icon-Dark.svg" />
-            <Image alt="Hedera icon" className="cursor-pointer hidden dark:block" fill src="/Hedera-Icon-White.svg" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-bold leading-tight text-base">Retainer</span>
-            <span className="text-[10px] tracking-wider uppercase text-base-content/50 font-medium">
-              Access that renews itself
+    <header className="rt-header">
+      <a href="#content" className="rt-skip">
+        Skip to content
+      </a>
+      <div className="rt-container rt-header__inner">
+        <div className="flex items-center gap-2 min-w-0">
+          <details className="relative lg:hidden" ref={burgerMenuRef}>
+            <summary className="rt-burger" aria-label="Open navigation">
+              <Bars3Icon className="h-5 w-5" aria-hidden="true" />
+            </summary>
+            <ul className="rt-menu" style={{ position: "fixed", top: "4rem" }}>
+              <NavLinks onNavigate={close} />
+            </ul>
+          </details>
+          <Link href="/" className="rt-brand" aria-label="Retainer — home">
+            <Image alt="" src="/icon.svg" width={28} height={28} priority className="rounded-[7px]" />
+            <span className="flex flex-col min-w-0">
+              <span className="rt-brand__name">Retainer</span>
+              <span className="rt-brand__tag rt-eyebrow">access that renews itself</span>
             </span>
-          </div>
-        </Link>
-        <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-2">
-          <HeaderMenuLinks />
-        </ul>
+          </Link>
+        </div>
+        <nav aria-label="Sections" className="rt-nav">
+          <ul className="flex gap-1 list-none m-0 p-0">
+            <NavLinks />
+          </ul>
+        </nav>
+        <div className="flex items-center gap-2 shrink-0">
+          <WalletConnectButton />
+        </div>
       </div>
-      <div className="navbar-end grow mr-4">
-        <WalletConnectButton />
-      </div>
-    </div>
+    </header>
   );
 };

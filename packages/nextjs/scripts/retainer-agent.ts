@@ -74,10 +74,22 @@ async function main() {
   const first = await fetch(`${BASE}/api/retainer/access?agent=${agent}`);
   console.log(`  HTTP ${first.status}`);
   if (first.status !== 402) {
-    console.log("  (already has access — cancelling first so the demo starts cold)");
+    // Access is still open from an earlier run. Cancelling stops the renewals and refunds the
+    // unspent balance, but it does NOT revoke the window already paid for — so the demo has to
+    // wait that out either way. Only cancel if there is still a subscription to cancel;
+    // cancel() reverts once pricePerPeriod has been zeroed by a previous cancel.
     const c = new Contract(contractAddr, ABI, wallet);
-    await (await c.cancel({ gasLimit: 1_000_000 })).wait();
-    console.log("  cancelled; re-run to see the cold path");
+    const [, price, expiresAt] = await c.subscriptionOf(agent);
+    if (price > 0n) {
+      console.log("  (already subscribed — cancelling so the demo starts cold)");
+      await (await c.cancel({ gasLimit: 1_000_000 })).wait();
+    }
+    const waitFor = Number(expiresAt) - Math.floor(Date.now() / 1000);
+    console.log(
+      waitFor > 0
+        ? `  the paid window still has ${waitFor}s to run; re-run after it expires for the cold path`
+        : "  re-run to see the cold path",
+    );
     return;
   }
 

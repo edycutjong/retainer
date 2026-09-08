@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     RetainerAccess: {
-      address: "0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A",
+      address: "0xd3A218AD4c817B14Cc754e4c996A95435155a27B",
       abi: [
         {
           inputs: [
@@ -15,6 +15,16 @@ const deployedContracts = {
               internalType: "address",
               name: "beneficiary_",
               type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "pricePerPeriod_",
+              type: "uint256",
+            },
+            {
+              internalType: "uint32",
+              name: "periodSeconds_",
+              type: "uint32",
             },
           ],
           stateMutability: "payable",
@@ -64,6 +74,11 @@ const deployedContracts = {
             },
           ],
           name: "ScheduleFailed",
+          type: "error",
+        },
+        {
+          inputs: [],
+          name: "TermsNotSet",
           type: "error",
         },
         {
@@ -193,6 +208,31 @@ const deployedContracts = {
             {
               indexed: false,
               internalType: "uint256",
+              name: "reclaimed",
+              type: "uint256",
+            },
+          ],
+          name: "RenewalCancelled",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "agent",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "address",
+              name: "schedule",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
               name: "firesAt",
               type: "uint256",
             },
@@ -266,6 +306,25 @@ const deployedContracts = {
           anonymous: false,
           inputs: [
             {
+              indexed: false,
+              internalType: "uint256",
+              name: "pricePerPeriod",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "uint32",
+              name: "periodSeconds",
+              type: "uint32",
+            },
+          ],
+          name: "TermsSet",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
               indexed: true,
               internalType: "address",
               name: "to",
@@ -280,6 +339,19 @@ const deployedContracts = {
           ],
           name: "Withdrawn",
           type: "event",
+        },
+        {
+          inputs: [],
+          name: "MIN_PERIOD_SECONDS",
+          outputs: [
+            {
+              internalType: "uint32",
+              name: "",
+              type: "uint32",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
         },
         {
           inputs: [],
@@ -312,6 +384,19 @@ const deployedContracts = {
           name: "cancel",
           outputs: [],
           stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "agent",
+              type: "address",
+            },
+          ],
+          name: "creditFor",
+          outputs: [],
+          stateMutability: "payable",
           type: "function",
         },
         {
@@ -374,6 +459,32 @@ const deployedContracts = {
           type: "function",
         },
         {
+          inputs: [],
+          name: "periodSeconds",
+          outputs: [
+            {
+              internalType: "uint32",
+              name: "",
+              type: "uint32",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "pricePerPeriod",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
           inputs: [
             {
               internalType: "address",
@@ -384,6 +495,19 @@ const deployedContracts = {
           name: "renew",
           outputs: [],
           stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "renewalsRemaining",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
           type: "function",
         },
         {
@@ -403,16 +527,36 @@ const deployedContracts = {
           inputs: [
             {
               internalType: "uint256",
-              name: "pricePerPeriod",
+              name: "pricePerPeriod_",
               type: "uint256",
             },
             {
               internalType: "uint32",
-              name: "periodSeconds",
+              name: "periodSeconds_",
               type: "uint32",
             },
           ],
+          name: "setTerms",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [],
           name: "subscribe",
+          outputs: [],
+          stateMutability: "payable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "agent",
+              type: "address",
+            },
+          ],
+          name: "subscribeFor",
           outputs: [],
           stateMutability: "payable",
           type: "function",
@@ -434,7 +578,7 @@ const deployedContracts = {
             },
             {
               internalType: "uint256",
-              name: "pricePerPeriod",
+              name: "price",
               type: "uint256",
             },
             {
@@ -444,7 +588,7 @@ const deployedContracts = {
             },
             {
               internalType: "uint32",
-              name: "periodSeconds",
+              name: "period",
               type: "uint32",
             },
             {
@@ -462,6 +606,13 @@ const deployedContracts = {
           type: "function",
         },
         {
+          inputs: [],
+          name: "syncReserve",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
           inputs: [
             {
               internalType: "uint256",
@@ -476,8 +627,8 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 40218724,
-      hederaContractId: "0.0.10406083",
+      deployedOnBlock: 40241011,
+      hederaContractId: "0.0.10414167",
     },
   },
 } as const;

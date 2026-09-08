@@ -7,9 +7,14 @@ const PRICE = 100n; // tinybar per period
 const PERIOD = 120; // seconds — must exceed MIN_PERIOD_SECONDS (61)
 const RESERVE = 200_000_000n; // must match RENEWAL_COST_ESTIMATE
 
-/** Contract-internal amounts are tinybar; msg.value is weibar (1 tinybar = 1e10 weibar). */
-const WEIBAR_PER_TINYBAR = 10n ** 10n;
-const toWeibar = (tinybar: bigint) => tinybar * WEIBAR_PER_TINYBAR;
+/**
+ * Everything is tinybar, including `value`.
+ *
+ * Measured on testnet with contracts/test/UnitProbe.sol: the JSON-RPC relay takes weibar on the
+ * wire and the EVM sees tinybar, so a contract does no conversion. These tests therefore pass
+ * tinybar straight into `value`, exactly as the deployed contract receives it.
+ */
+const tinybar = (t: bigint) => t;
 
 /** The mock scheduler, reached at the system-contract address it was installed at. */
 const scheduler = async () => ethers.getContractAt("MockScheduleService", HSS);
@@ -32,15 +37,15 @@ describe("RetainerAccess", () => {
 
     c = (await (
       await ethers.getContractFactory("RetainerAccess")
-    ).deploy(seller.address, PRICE, PERIOD, { value: toWeibar(RESERVE * 5n) })) as any;
+    ).deploy(seller.address, PRICE, PERIOD, { value: tinybar(RESERVE * 5n) })) as any;
   });
 
-  const subscribe = (who: any, periods: bigint = 10n) => c.connect(who).subscribe({ value: toWeibar(PRICE * periods) });
+  const subscribe = (who: any, periods: bigint = 10n) => c.connect(who).subscribe({ value: tinybar(PRICE * periods) });
 
   describe("units — tinybar in storage, weibar on the wire", () => {
     // The bug this locks out: `call{value: tinybar}` sends 1e10 times too little. It does not
     // revert, it does not emit anything unusual — it just silently underpays the refund.
-    it("refunds the subscriber the real amount, in weibar", async () => {
+    it("refunds the subscriber the real amount, with no unit conversion", async () => {
       await subscribe(agent, 10n);
       const before = await ethers.provider.getBalance(agent.address);
       const tx = await c.connect(agent).cancel();
@@ -48,35 +53,50 @@ describe("RetainerAccess", () => {
       const gas = rc!.gasUsed * rc!.gasPrice;
       const after = await ethers.provider.getBalance(agent.address);
       // 10 periods funded, 1 charged on subscribe → 9 refundable.
-      expect(after - before + gas).to.equal(toWeibar(PRICE * 9n));
+      expect(after - before + gas).to.equal(PRICE * 9n);
     });
 
-    it("pays the beneficiary the real amount, in weibar", async () => {
+    it("pays the beneficiary the real amount, with no unit conversion", async () => {
       await subscribe(agent, 10n);
       const before = await ethers.provider.getBalance(seller.address);
       const tx = await c.withdraw(PRICE);
       const rc = await tx.wait();
       const gas = rc!.gasUsed * rc!.gasPrice;
       const after = await ethers.provider.getBalance(seller.address);
-      expect(after - before + gas).to.equal(toWeibar(PRICE));
+      expect(after - before + gas).to.equal(PRICE);
     });
 
-    it("credits deposits at the true tinybar rate, not 1:1", async () => {
-      await c.connect(agent).fund({ value: toWeibar(500n) });
+    it("credits a deposit as the exact amount sent", async () => {
+      await c.connect(agent).fund({ value: 500n });
       const [balance] = await c.subscriptionOf(agent.address);
       expect(balance).to.equal(500n);
     });
 
-    it("rejects a deposit too small to be one tinybar instead of minting balance", async () => {
-      // Sub-tinybar weibar used to be credited 1:1, inflating balance by 1e10.
-      await expect(c.connect(agent).fund({ value: 999n })).to.be.revertedWithCustomError(c, "DustAmount");
+    it("rejects a zero deposit instead of booking nothing", async () => {
+      await expect(c.connect(agent).fund({ value: 0n })).to.be.revertedWithCustomError(c, "NothingToFund");
     });
 
-    it("keeps the solvency invariant in a single unit so it can actually fire", async () => {
+    it("holds the solvency invariant: balance covers all three pots", async () => {
       await subscribe(agent, 10n);
-      const balanceTinybar = (await ethers.provider.getBalance(await c.getAddress())) / WEIBAR_PER_TINYBAR;
+      const held = await ethers.provider.getBalance(await c.getAddress());
       const liabilities = (await c.owed()) + (await c.revenue()) + (await c.gasReserve());
-      expect(balanceTinybar).to.be.gte(liabilities);
+      expect(held).to.be.gte(liabilities);
+    });
+
+    it("syncReserve adopts balance the contract holds but never booked", async () => {
+      // Hedera credits a contract-create's initial balance outside the EVM frame, so a payable
+      // constructor can see msg.value == 0 while the contract really does hold the money.
+      const before = await c.gasReserve();
+      const held = await ethers.provider.getBalance(await c.getAddress());
+      // setBalance, not a transfer: the point is money arriving WITHOUT an EVM frame, which is
+      // exactly what Hedera's HAPI-level initial balance does to a payable constructor.
+      await network.provider.send("hardhat_setBalance", [await c.getAddress(), "0x" + (held + 12345n).toString(16)]);
+      await expect(c.syncReserve()).to.emit(c, "GasReserveFunded");
+      expect(await c.gasReserve()).to.equal(before + 12345n);
+    });
+
+    it("only the beneficiary may sync the reserve", async () => {
+      await expect(c.connect(stranger).syncReserve()).to.be.revertedWithCustomError(c, "NotBeneficiary");
     });
   });
 
@@ -90,7 +110,7 @@ describe("RetainerAccess", () => {
 
     it("refuses a subscription that cannot cover one period at the seller's price", async () => {
       // Formerly: subscribe(2, 60) bought a full window for 2 tinybar and burned 2 HBAR of reserve.
-      await expect(c.connect(agent).subscribe({ value: toWeibar(2n) })).to.be.revertedWithCustomError(
+      await expect(c.connect(agent).subscribe({ value: tinybar(2n) })).to.be.revertedWithCustomError(
         c,
         "InsufficientBalance",
       );
@@ -118,20 +138,20 @@ describe("RetainerAccess", () => {
   describe("x402 settlement credits the on-chain subscription", () => {
     // Without this the payment rail and the renewal mechanism are unrelated systems.
     it("lets the resource server credit a settled payment to the paying agent", async () => {
-      await c.connect(seller).creditFor(agent.address, { value: toWeibar(PRICE * 3n) });
+      await c.connect(seller).creditFor(agent.address, { value: tinybar(PRICE * 3n) });
       const [balance] = await c.subscriptionOf(agent.address);
       expect(balance).to.equal(PRICE * 3n);
     });
 
     it("counts credited funds as money owed back to the agent, not revenue", async () => {
-      await c.connect(seller).creditFor(agent.address, { value: toWeibar(PRICE * 3n) });
+      await c.connect(seller).creditFor(agent.address, { value: tinybar(PRICE * 3n) });
       expect(await c.owed()).to.equal(PRICE * 3n);
       expect(await c.revenue()).to.equal(0n);
     });
 
     it("the resource server can open the subscription for an agent that paid off-chain", async () => {
       // The agent signs one x402 payment and never touches the chain; the server forwards it.
-      await expect(c.connect(seller).subscribeFor(agent.address, { value: toWeibar(PRICE * 3n) }))
+      await expect(c.connect(seller).subscribeFor(agent.address, { value: tinybar(PRICE * 3n) }))
         .to.emit(c, "SubscriptionStarted")
         .and.to.emit(c, "RenewalScheduled");
       expect(await c.hasAccess(agent.address)).to.equal(true);
@@ -142,14 +162,14 @@ describe("RetainerAccess", () => {
     it("subscribeFor cannot spend an agent's existing balance without funding a period", async () => {
       // Otherwise a stranger could open an unwanted subscription on the agent's money
       // and burn a slot of the seller's gas reserve doing it.
-      await c.connect(stranger).creditFor(agent.address, { value: toWeibar(PRICE * 5n) });
+      await c.connect(stranger).creditFor(agent.address, { value: tinybar(PRICE * 5n) });
       await expect(
-        c.connect(stranger).subscribeFor(agent.address, { value: toWeibar(PRICE - 1n) }),
+        c.connect(stranger).subscribeFor(agent.address, { value: tinybar(PRICE - 1n) }),
       ).to.be.revertedWithCustomError(c, "InsufficientBalance");
     });
 
     it("a credited agent can subscribe with no further payment", async () => {
-      await c.connect(stranger).creditFor(agent.address, { value: toWeibar(PRICE * 2n) });
+      await c.connect(stranger).creditFor(agent.address, { value: tinybar(PRICE * 2n) });
       await expect(c.connect(agent).subscribe()).to.emit(c, "SubscriptionStarted");
       expect(await c.hasAccess(agent.address)).to.equal(true);
     });
@@ -271,9 +291,9 @@ describe("RetainerAccess", () => {
       // Drain the reserve down to a single armed renewal.
       const poor = (await (
         await ethers.getContractFactory("RetainerAccess")
-      ).deploy(seller.address, PRICE, PERIOD, { value: toWeibar(RESERVE) })) as any;
+      ).deploy(seller.address, PRICE, PERIOD, { value: tinybar(RESERVE) })) as any;
 
-      await poor.connect(agent).subscribe({ value: toWeibar(PRICE * 10n) });
+      await poor.connect(agent).subscribe({ value: tinybar(PRICE * 10n) });
       await network.provider.send("evm_increaseTime", [PERIOD]);
       await network.provider.send("evm_mine");
       await expect(poor.connect(stranger).renew(agent.address))
@@ -322,7 +342,7 @@ describe("RetainerAccess", () => {
 
     it("a scheduling failure at subscribe() time reverts, because the user is watching", async () => {
       await (await scheduler()).setRefuseSchedule(true);
-      await expect(c.connect(agent).subscribe({ value: toWeibar(PRICE * 10n) })).to.be.revertedWithCustomError(
+      await expect(c.connect(agent).subscribe({ value: tinybar(PRICE * 10n) })).to.be.revertedWithCustomError(
         c,
         "ScheduleFailed",
       );

@@ -23,13 +23,25 @@ import {HederaResponseCodes} from "@hiero-ledger/hiero-contracts/common/HederaRe
  *
  * `_solvent()` asserts the native balance still covers all three.
  *
- * ## Units — the sharpest edge on Hedera
+ * ## Units — the sharpest edge on Hedera, and not where it looks
  *
- * Hedera's EVM denominates `msg.value` and `address(this).balance` in **weibar**, while the
- * network's own accounting is in **tinybar**, at 1 tinybar = 1e10 weibar. This contract stores
- * every amount in tinybar and converts only at the EVM boundary: `_toTinybar` on the way in,
- * `_toWeibar` on the way out. Mixing the two silently underpays a transfer by ten orders of
- * magnitude, which is a bug that looks like a successful transaction.
+ * Hedera has two denominations: tinybar (1 HBAR = 1e8) and weibar (1 HBAR = 1e18, the shape
+ * Ethereum tooling expects). They are not used in the same places, and the boundary is not
+ * where an Ethereum instinct puts it:
+ *
+ *   - the JSON-RPC relay speaks **weibar**. `eth_getBalance`, and the `value` field of the
+ *     transaction you sign, are 1e18-scaled.
+ *   - inside the EVM everything is **tinybar**. `msg.value`, `address(this).balance` and the
+ *     `value` of an outbound `call{value:}` are all 1e8-scaled. The relay converts at the edge.
+ *
+ * So a contract on Hedera should do **no conversion at all** — it receives tinybar and it sends
+ * tinybar. Adding the 1e10 conversion Ethereum experience asks for overpays every transfer by
+ * ten orders of magnitude; omitting one that were genuinely needed would underpay by the same
+ * factor. Both failures are silent.
+ *
+ * This is measured, not assumed. `contracts/test/UnitProbe.sol` was deployed to testnet and sent
+ * 2 HBAR as 2e18 on the wire; it reported `msg.value == 200000000` and
+ * `address(this).balance == 200000000`. See `docs/hedera-units.md`.
  *
  * ## Why renewal can stop
  *
@@ -52,9 +64,6 @@ contract RetainerAccess is HederaScheduleService {
         bool    active;
         address schedule;       // pending scheduled call, if any
     }
-
-    /// 1 tinybar = 1e10 weibar. The only place this ratio is written down.
-    uint256 private constant WEIBAR_PER_TINYBAR = 1e10;
 
     /// Gas handed to the scheduled `renew()`. Measured on testnet: a renewal that re-arms the
     /// next one consumes ~1.5M gas, almost all of it the `scheduleCall` into `0x16b` itself.
@@ -124,7 +133,6 @@ contract RetainerAccess is HederaScheduleService {
     error NotBeneficiary();
     error Insolvent();
     error TransferFailed();
-    error DustAmount();
 
     modifier onlyBeneficiary() {
         if (msg.sender != beneficiary) revert NotBeneficiary();
@@ -136,10 +144,11 @@ contract RetainerAccess is HederaScheduleService {
         if (pricePerPeriod_ != 0 || periodSeconds_ != 0) {
             _setTerms(pricePerPeriod_, periodSeconds_);
         }
+        // On Hedera this is usually 0 even when the deploy carried a value — the initial
+        // balance is credited outside the EVM frame. See `syncReserve()`.
         if (msg.value > 0) {
-            uint256 amount = _toTinybar(msg.value);
-            gasReserve += amount;
-            emit GasReserveFunded(msg.sender, amount, gasReserve);
+            gasReserve += msg.value;
+            emit GasReserveFunded(msg.sender, msg.value, gasReserve);
         }
     }
 
@@ -161,10 +170,26 @@ contract RetainerAccess is HederaScheduleService {
 
     /// @notice Top up the reserve that pays for scheduled executions. Anyone may contribute.
     function fundGasReserve() external payable {
-        uint256 amount = _toTinybar(msg.value);
-        if (amount == 0) revert NothingToFund();
-        gasReserve += amount;
-        emit GasReserveFunded(msg.sender, amount, gasReserve);
+        if (msg.value == 0) revert NothingToFund();
+        gasReserve += msg.value;
+        emit GasReserveFunded(msg.sender, msg.value, gasReserve);
+    }
+
+    /**
+     * @notice Account for native balance the contract holds but has not booked.
+     * @dev Hedera credits a contract-create's initial balance at the HAPI level, outside the EVM
+     *      frame — so a payable constructor sees `msg.value == 0` while the contract really does
+     *      hold the money. Deploying with a value therefore strands it: present, unbooked and
+     *      unusable, surfacing later as a subscription that will not arm because `gasReserve` is
+     *      zero. This adopts any such balance into the gas reserve.
+     */
+    function syncReserve() external onlyBeneficiary {
+        uint256 booked = _owed + revenue + gasReserve;
+        uint256 held = address(this).balance;
+        if (held <= booked) revert NothingToFund();
+        uint256 unbooked = held - booked;
+        gasReserve += unbooked;
+        emit GasReserveFunded(msg.sender, unbooked, gasReserve);
     }
 
     /// @notice Add refundable funds the caller's own subscription draws on.
@@ -186,12 +211,8 @@ contract RetainerAccess is HederaScheduleService {
         _credit(agent, msg.value);
     }
 
-    function _credit(address agent, uint256 weibarValue) private {
-        uint256 amount = _toTinybar(weibarValue);
-        if (weibarValue == 0) revert NothingToFund();
-        // Below 1 tinybar the network cannot represent the value; crediting it would either
-        // mint balance from nothing or silently keep the dust.
-        if (amount == 0) revert DustAmount();
+    function _credit(address agent, uint256 amount) private {
+        if (amount == 0) revert NothingToFund();
         Subscription storage s = _subs[agent];
         s.balance += amount;
         _owed += amount;
@@ -216,16 +237,16 @@ contract RetainerAccess is HederaScheduleService {
      *      only make one a gift.
      */
     function subscribeFor(address agent) external payable {
-        if (_toTinybar(msg.value) < pricePerPeriod) revert InsufficientBalance();
+        if (msg.value < pricePerPeriod) revert InsufficientBalance();
         _subscribe(agent, msg.value);
     }
 
-    function _subscribe(address agent, uint256 weibarValue) private {
+    function _subscribe(address agent, uint256 value) private {
         Subscription storage s = _subs[agent];
         if (s.active) revert AlreadyActive();
         if (pricePerPeriod == 0 || periodSeconds == 0) revert TermsNotSet();
 
-        if (weibarValue > 0) _credit(agent, weibarValue);
+        if (value > 0) _credit(agent, value);
         if (s.balance < pricePerPeriod) revert InsufficientBalance();
 
         s.pricePerPeriod = pricePerPeriod;
@@ -400,20 +421,16 @@ contract RetainerAccess is HederaScheduleService {
         }
     }
 
-    /// @dev `msg.value` arrives in weibar; everything stored on-chain is tinybar.
-    function _toTinybar(uint256 weibar) private pure returns (uint256) {
-        return weibar / WEIBAR_PER_TINYBAR;
-    }
-
-    /// @dev Outbound transfers must be denominated back in weibar, or they underpay by 1e10.
+    /// @dev Tinybar in, tinybar out. Inside the EVM Hedera's `value` is already tinybar, so a
+    ///      conversion here would overpay by 1e10. See the units note in the contract docblock.
     function _send(address to, uint256 tinybar) private {
-        (bool ok, ) = payable(to).call{value: tinybar * WEIBAR_PER_TINYBAR}("");
+        (bool ok, ) = payable(to).call{value: tinybar}("");
         if (!ok) revert TransferFailed();
     }
 
     /// @dev The contract must always be able to honour refunds, revenue and scheduled gas.
-    ///      Compared in tinybar on both sides — the balance is weibar and must be converted.
+    ///      `address(this).balance` is tinybar inside the EVM — the same unit as the three pots.
     function _solvent() private view {
-        if (_toTinybar(address(this).balance) < _owed + revenue + gasReserve) revert Insolvent();
+        if (address(this).balance < _owed + revenue + gasReserve) revert Insolvent();
     }
 }

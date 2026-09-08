@@ -1,350 +1,529 @@
-# x402 Pay-Per-Use Template — Test Runbook
+# Retainer — verification runbook
 
-A step-by-step guide to verifying each part of the template. Sections are added as each
-iteration lands. Run commands from the repository root unless stated otherwise.
+How to go from a clean checkout to watching an on-chain subscription renew itself on Hedera
+testnet with nobody awake.
 
-> Status: Iterations 1–5 are implemented. See **Environment variables** and **Testnet
-> caveats** for configuration reference.
+Run every command from the repository root unless a step says otherwise.
 
-## Prerequisites
-
-| Tool | Version | Needed for |
-| --- | --- | --- |
-| Node.js | ≥ 20.18.3 (default); optional 22 for Next.js — see [README § Node.js version](README.md#nodejs-version) | Hardhat, Next.js, scripts |
-| Yarn | 3.2.3 (via corepack) | monorepo scripts |
-| Docker + Docker Compose | recent | Iteration 2 (MinIO + facilitator) |
-| A funded **ECDSA** Hedera testnet account | — | deploying contracts + running the facilitator |
-
-Get a testnet account and HBAR from the [Hedera Portal](https://portal.hedera.com/) faucet.
-Create the account as **ECDSA** (x402 on Hedera requires ECDSA keys).
+The claim being verified is narrow and specific: a request that gets `402` before payment, and
+`200` after the paid window has already expired, **because the Hedera Schedule Service called
+`renew()` on the contract** — no user transaction, no server job, no cron.
 
 ---
 
-## Iteration 1 — Smart contract (`FileRegistry`)
+## 1. Prerequisites
 
-The registry is pure EVM (no HTS/HSS precompiles), so it compiles and tests **offline** with
-no Hedera fork.
+| Tool | Version | Needed for |
+| --- | --- | --- |
+| Node.js | ≥ 20.18.3 | Hardhat, Next.js, scripts |
+| Yarn | 3.2.3 (via `corepack enable`) | monorepo scripts |
+| A funded **ECDSA** Hedera testnet account | — | deploying, and forwarding settled payments on-chain |
+| A second funded **ECDSA** testnet account | — | the buying agent |
 
-### 1.1 Compile
+No Docker. No MinIO. No self-hosted facilitator. Settlement goes through the hosted
+**Blocky402** testnet facilitator (`https://api.testnet.blocky402.com`), which needs no API key
+and supplies its own fee payer.
+
+Create both accounts as **ECDSA** at the [Hedera Portal](https://portal.hedera.com/) and fund
+them from the faucet. x402 on Hedera requires ECDSA keys. The seller account needs enough HBAR
+to cover the contract's gas reserve plus its own transaction fees; budget generously, because
+each unattended renewal costs the seller about **1.55 HBAR** (see §8).
+
+```bash
+corepack enable
+yarn install
+```
+
+### Provenance
+
+This repo was built from [`hedera-dev/scaffold-hbar`](https://github.com/hedera-dev/scaffold-hbar)'s
+`x402-pay-per-use` template — the starter Hedera's own bounty page points at. The template's
+product (a MinIO-backed pay-per-download file marketplace, `FileRegistry`, a block explorer,
+`docker-compose`, a self-hosted facilitator) has been removed. What remains of the scaffold is
+the Hardhat/Next.js wiring and the account tooling.
+
+---
+
+## 2. Environment
+
+### 2.1 Contract keys — `packages/hardhat/.env`
+
+```bash
+cp packages/hardhat/.env.example packages/hardhat/.env
+```
+
+| Variable | Where it comes from |
+| --- | --- |
+| `HEDERA_RPC_URL` | `https://testnet.hashio.io/api` (the default) |
+| `DEPLOYER_PRIVATE_KEY_ENCRYPTED` | **Do not fill by hand.** Written by `yarn hardhat:account:import` |
+
+Import the seller's ECDSA key once. It is stored password-encrypted and decrypted only in
+memory at deploy time:
+
+```bash
+yarn hardhat:account:import      # paste the ECDSA key, choose a password
+yarn hardhat:account             # prints the address + balance; confirm it is funded
+```
+
+`yarn hardhat:account:generate` makes a fresh key instead, which then needs funding.
+
+### 2.2 Resource server — `packages/nextjs/.env`
+
+```bash
+cp packages/nextjs/.env.example packages/nextjs/.env
+```
+
+The variables Retainer actually reads:
+
+| Variable | What to set it to |
+| --- | --- |
+| `HEDERA_RPC_URL` | `https://testnet.hashio.io/api` |
+| `FACILITATOR_URL` | `https://api.testnet.blocky402.com` |
+| `X402_NETWORK` | `hedera:testnet` |
+| `RETAINER_PAY_TO` | The **seller's Hedera account id** (`0.0.x`) that receives the x402 payment |
+| `RETAINER_PRICE_TINYBAR` | Price of **one** period, in tinybar. Default `100000000` (1 HBAR). Must equal the contract's `pricePerPeriod` |
+| `RETAINER_PERIODS_PER_PURCHASE` | How many periods one payment buys. Default `3`. The 402 charges `RETAINER_PRICE_TINYBAR × RETAINER_PERIODS_PER_PURCHASE` |
+| `RETAINER_SERVER_KEY` | ECDSA private key of the seller account. This is what forwards a settled payment into `subscribeFor(agent)`. Without it the payment settles and **no subscription opens** — see §9.1 |
+| `RETAINER_ACCESS_ADDRESS` | Optional. Normally resolved from `packages/nextjs/contracts/deployedContracts.ts`, which deploy regenerates. Set it to point at an already-deployed contract |
+
+`RETAINER_PERIODS_PER_PURCHASE` must be greater than 1 or the interesting thing never happens:
+the first period is charged the moment the subscription opens, and every period after it is
+charged by a renewal the network executes on its own.
+
+### 2.3 Agent credentials — `~/.config/retainer/hedera.env`
+
+The buyer-side scripts read credentials from outside the repo, never from the tree:
+
+```dotenv
+BUYER_ACCOUNT_ID=0.0.xxxxxxx
+BUYER_PRIVATE_KEY=0x...
+RETAINER_ACCESS_ADDRESS=0x...
+```
+
+---
+
+## 3. Compile
 
 ```bash
 yarn hardhat:compile
 ```
 
-Expected: `Compiled 1 Solidity file successfully` and TypeChain typings generated.
+Expect `RetainerAccess.sol` and the test-only `MockScheduleService` to compile, with TypeChain
+typings generated into `packages/hardhat/typechain-types`.
 
-### 1.2 Run the unit tests
+---
+
+## 4. Run the tests
 
 ```bash
 yarn hardhat:test
 ```
 
-Expected: **22 passing**, covering registration, metadata, deterministic file ids, price /
-visibility / payTo updates, access control (owner-only), empty-value reverts, not-found
-reverts, and pagination edge cases. A gas report prints at the end.
+Expect **38 passing**. The suite takes roughly two minutes; each test redeploys the contract
+and reinstalls the mock scheduler.
 
-### 1.3 (Optional) Deploy to Hedera testnet
+The tests run against a forked Hedera environment (`HEDERA_FORKING=true`) with a
+`MockScheduleService` written into the Schedule Service system-contract address
+`0x…016b` via `hardhat_setCode`. That mock is what makes scheduling deterministic — it can be
+told to refuse a schedule, report no capacity, or refuse a delete, so the lapse paths are
+actually exercised rather than asserted.
 
-This regenerates `packages/nextjs/contracts/deployedContracts.ts` with the live EVM address and native Hedera contract id.
+The nine groups map onto the things that were got wrong at least once during the build:
 
-```bash
-# One-time: create or import a funded deployer key
-yarn hardhat:account:generate        # or: yarn hardhat:account:import
-# Fund the printed account with testnet HBAR, then:
-yarn hardhat:deploy --network hederaTestnet
-```
+| Group | What it pins down |
+| --- | --- |
+| units — tinybar in storage, weibar on the wire | `msg.value` is weibar, storage is tinybar; a missing `1e10` conversion underpays a refund without reverting |
+| the seller sets the price, not the subscriber | `setTerms` is beneficiary-only; 2 tinybar must not buy a window that burns 2 HBAR of the seller's reserve |
+| x402 settlement credits the on-chain subscription | `creditFor` / `subscribeFor` — the join between the off-chain payment and on-chain state |
+| renew() time gate — the griefing fix | `renew()` is public but reverts before expiry, because scheduling costs the **contract** money |
+| what the contract asks the scheduler to do | `scheduleCall`, `deleteSchedule`, `hasScheduleCapacity` against the mock |
+| money separation | `_owed`, `revenue` and `gasReserve` never borrow from each other; `_solvent()` holds |
+| lapsing is loud, never silent | every way a subscription can end emits `Lapsed` with a reason |
+| access gate | `hasAccess` across the window boundary, including surviving expiry when the renewal fires |
 
-Expected:
-- `deploying "FileRegistry" ... deployed at 0x...`
-- `Resolved Hedera contract id: 0.0.xxxxx`
-- `📝 Updated TypeScript contract definition file on ../nextjs/contracts/deployedContracts.ts`
-- A `296: { FileRegistry: { address, hederaContractId, abi, ... } }` entry now exists in `deployedContracts.ts`.
-- View it on HashScan: `https://hashscan.io/testnet/contract/0x...`
+`REPORT_GAS=true` is on, so a gas table prints at the end. Read it with one caveat: the mock
+scheduler is a normal contract, so those numbers **exclude the real `scheduleCall` into the
+Hedera system contract**. Locally `renew()` costs tens of thousands of gas and `subscribe()`
+around 0.2M. On testnet `subscribe()` used **1,582,554**. That ~1.4M difference is the
+system-contract call, and it is the entire cost story of this project (§8).
 
 ---
 
-## Iteration 2 — Local infrastructure (MinIO + facilitator)
+## 5. Deploy to Hedera testnet
 
-Two pieces run locally via Docker: a private **MinIO** bucket (object storage, no AWS) and the
-**self-hosted x402 Hedera facilitator** (verify/settle, no third-party service).
-
-### 2.1 Configure
+Terms are constructor arguments, so choose them before deploying. For a demo you want a period
+short enough to watch; the contract's floor is `MIN_PERIOD_SECONDS = 61`.
 
 ```bash
-cp .env.example .env
+RETAINER_PRICE_TINYBAR=100000000 \
+RETAINER_PERIOD_SECONDS=120 \
+  yarn hardhat:deploy --network hederaTestnet
 ```
 
-Edit `.env` and set the facilitator fee-payer credentials.
+You will be prompted for the password that decrypts `DEPLOYER_PRIVATE_KEY_ENCRYPTED`.
 
-**Why a private key here?** Private downloads settle as native Hedera `TransferTransaction`s.
-HashPack only **partially signs** — the buyer authorizes debiting their HBAR to the seller’s
-`payTo` account. Something still has to (a) co-sign as **fee payer**, (b) pay the Hedera network
-fee, and (c) **submit** the transaction. That is the facilitator’s job; it needs
-`FACILITATOR_ACCOUNT_ID` + `FACILITATOR_PRIVATE_KEY` server-side. The Next.js app never holds
-this key (it only calls `FACILITATOR_URL`). Use a **dedicated ECDSA** testnet account, funded
-with HBAR — not your contract deployer or seller wallet.
+What the deploy does (`packages/hardhat/deploy/01_deploy_retainer_access.ts`):
 
-```dotenv
-FACILITATOR_ACCOUNT_ID=0.0.xxxxxx
-FACILITATOR_PRIVATE_KEY=0x...
-# MINIO_ROOT_USER / MINIO_ROOT_PASSWORD / S3_BUCKET can stay at defaults for local dev
+- constructor `(beneficiary = deployer, pricePerPeriod, periodSeconds)`
+- sends **8 HBAR** as `value`, which seeds `gasReserve`. A self-renewing contract has to hold
+  gas for its own future, because the network charges the *contract* for each scheduled
+  execution. 8 HBAR arms about four renewals at the contract's `RENEWAL_COST_ESTIMATE` of
+  2 HBAR each
+- `gasLimit: 4000000`. The deploy itself used **968,564** gas on testnet
+- resolves and records the native Hedera contract id (`0.0.x`) into the deployment JSON
+- regenerates `packages/nextjs/contracts/deployedContracts.ts` so the resource server finds the
+  address with no further configuration
+
+Expected output includes:
+
+```
+deploying "RetainerAccess" ... deployed at 0x...
+Resolved Hedera contract id: 0.0.xxxxxxx
+📝 Updated TypeScript contract definition file on ../nextjs/contracts/deployedContracts.ts
 ```
 
-### 2.2 Start the stack
+Then confirm on HashScan: `https://hashscan.io/testnet/contract/0.0.xxxxxxx`.
+
+Optionally verify the source:
 
 ```bash
-yarn infra:up
+yarn hardhat:verify:testnet
 ```
 
-Expected: `minio`, `minio-init`, and `facilitator` containers start. `minio-init` logs
-`MinIO ready: private bucket x402-files created` then exits 0.
+### The currently live deployment
 
-### 2.3 Verify MinIO
+```
+0.0.10406083  /  0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A
+https://hashscan.io/testnet/contract/0.0.10406083
+```
 
-- Open the console at `http://localhost:9001` and log in with `MINIO_ROOT_USER` /
-  `MINIO_ROOT_PASSWORD` (default `minioadmin` / `minioadmin`).
-- Confirm the bucket (default `x402-files`) exists and its access policy is **private**
-  (anonymous access disabled).
+This is the deployment that produced the measured proof in §8. It **predates this session's
+fixes and runs an older constructor and ABI** — a redeploy is pending. Deploy your own rather
+than pointing the current code at that address.
 
-### 2.4 Verify the facilitator
+### Changing terms later
+
+Terms are snapshotted into each subscription at `subscribe()` time, so changing them never
+reprices a subscription already running:
+
+```solidity
+setTerms(uint256 pricePerPeriod, uint32 periodSeconds)   // beneficiary only
+```
+
+`periodSeconds` below 61 reverts with `InvalidTerms`.
+
+---
+
+## 6. Run the resource server
 
 ```bash
-curl -s localhost:4020/health
-curl -s localhost:4020/supported
+yarn next:dev          # http://localhost:3000
 ```
 
-Expected `/health`:
+Two routes matter:
 
-```json
-{ "status": "ok", "network": "hedera:testnet", "feePayer": "0.0.xxxxxx" }
+- `GET /api/retainer/access?agent=<0x…>` — **the gate.** Asking about an agent with no access
+  starts a payment: it builds x402 requirements, talks to the facilitator, and answers `402`.
+  Do not poll this.
+- `GET /api/retainer/status?agent=<0x…>` — read-only chain state, safe to poll. This is what
+  the live view at `/` uses to count the window down and show the renewal firing.
+
+Sanity check before the demo — no payment path is touched:
+
+```bash
+curl -s "localhost:3000/api/retainer/status?agent=0xYOUR_AGENT" | python3 -m json.tool
 ```
 
-Expected `/supported` (note the advertised `feePayer` and signer match your account):
+Expect `contract` to be your deployed address, `hasAccess: false`, `active: false`,
+`nextRenewalSchedule: 0x0000…0000`, and `renewalsReserveCanArm` around `4`. If you get `503`,
+the server cannot find the contract — see §9.4.
 
-```json
+---
+
+## 7. The demo walk
+
+### 7.1 Cold request → 402
+
+```bash
+curl -s -i "localhost:3000/api/retainer/access?agent=0xYOUR_AGENT"
+```
+
+Expect:
+
+- status `402 Payment Required`
+- a `PAYMENT-REQUIRED` response header carrying the base64 challenge for x402 clients
+- a JSON body whose `accepts[0]` advertises `scheme: "exact"`, `network: "hedera:testnet"`,
+  `payTo` = your `RETAINER_PAY_TO`, and an amount of
+  `RETAINER_PRICE_TINYBAR × RETAINER_PERIODS_PER_PURCHASE` (3 HBAR at the defaults)
+
+### 7.2 Pay once → 200
+
+The agent client signs a Hedera `TransferTransaction` under the x402 `exact` scheme and retries
+with the payment header:
+
+```bash
+cd packages/nextjs
+BASE_URL=http://localhost:3000 yarn tsx scripts/retainer-agent.ts
+```
+
+Steps 1 and 2 of that script are the real paid request end to end: it takes the `402`, builds a
+payment payload with `@x402/hedera`, retries, and prints the settled Hedera transaction id plus
+its HashScan link.
+
+> **Known gap.** The script's step 3 then calls a two-argument `subscribe(price, period)` that
+> the current contract no longer exposes — terms are now set by the seller, and the resource
+> server opens the subscription itself the moment the payment settles. The script fails there
+> and does not reach its own steps 4–5. Its payment path is real and current; run the rest of
+> the walk with `curl` as below until the script is updated.
+
+The server's own `200` response to the paid request is what to read:
+
+```jsonc
 {
-  "kinds": [{ "x402Version": 2, "scheme": "exact", "network": "hedera:testnet", "extra": { "feePayer": "0.0.xxxxxx" } }],
-  "extensions": [],
-  "signers": { "hedera:*": ["0.0.xxxxxx"] }
+  "access": "granted",
+  "paidThisRequest": true,
+  "payment":      { "transaction": "0.0.…@…", "payer": "0.0.…" },
+  "subscription": { "opened": true, "transaction": "0x…", "periodsPurchased": 3 }
 }
 ```
 
-An unknown route returns HTTP `404`.
+`payment.transaction` is the Blocky402 settlement. `subscription.transaction` is the seller
+forwarding that same amount into `RetainerAccess.subscribeFor(agent)`, which opens the
+subscription, charges period one, and **arms the first scheduled renewal**.
 
-### 2.5 Logs / teardown
+If `subscription.opened` is `false`, the payment was still captured — read the error and go to
+§9.1. The route never implies a subscription that does not exist.
 
-```bash
-yarn infra:logs    # follow container logs
-yarn infra:down    # stop the stack (MinIO data persists in the named volume)
-```
-
-### 2.6 (Optional) Test the facilitator without Docker
+### 7.3 Inside the window → 200, nothing paid
 
 ```bash
-cd facilitator
-cp .env.example .env   # set FACILITATOR_ACCOUNT_ID / FACILITATOR_PRIVATE_KEY
-npm install
-npm run check-types    # type-checks against @x402/core + @x402/hedera
-npm start              # serves on :4020 — test with the curl commands in 2.4
+curl -s "localhost:3000/api/retainer/access?agent=0xYOUR_AGENT" | python3 -m json.tool
 ```
+
+Expect `paidThisRequest: false`, a `subscription.secondsRemaining` counting down, and
+`nextRenewalSchedule` set to a non-zero address. That address is the pending scheduled call —
+the network is holding a renewal for you.
+
+### 7.4 Wait past expiry, sending nothing
+
+Wait `periodSeconds + ~45s`. Send no transaction. Do not touch the contract. Open
+`http://localhost:3000` and watch the window count to zero.
+
+### 7.5 After expiry → still 200
+
+```bash
+curl -s "localhost:3000/api/retainer/access?agent=0xYOUR_AGENT" | python3 -m json.tool
+```
+
+Expect `200` with `paidThisRequest: false` again, and `expiresAt` moved a full period into the
+future. Nothing was signed, nothing was paid, and the only party that acted was the network.
+
+That is the product.
+
+### 7.6 The same proof without the HTTP layer
+
+`packages/hardhat/scripts/proveRenewal.ts` proves it directly against the deployed contract:
+it reads the seller's terms, subscribes, records `expiresAt` and `balance`, waits without
+sending anything, and asserts the window extended and the balance drew down. It then cancels
+and checks the refund was paid **in full**, which is the regression guard for the
+tinybar/weibar conversion.
+
+```bash
+cd packages/hardhat
+yarn hardhat run scripts/proveRenewal.ts --network hederaTestnet
+```
+
+It reads the deployed address from `deployments/hederaTestnet/RetainerAccess.json` and the
+buyer key from `~/.config/retainer/hedera.env`.
 
 ---
 
-## Iteration 3 — Server: storage helper + x402 API routes
+## 8. Confirming the renewal on-chain
 
-The Next.js app is now the **x402 resource server**. It exposes two API routes:
+The renewal is a `CONTRACTCALL` the network submitted on the contract's behalf. The field that
+proves nobody sent it is **`scheduled=True`**.
 
-- `POST /api/files/upload` — returns a presigned MinIO PUT URL (bytes never touch the server).
-- `GET /api/files/:id/download` — reads the `FileRegistry`, serves public files for free, and
-  gates private files behind a per-download HBAR payment (verify → settle → presigned GET URL).
+**HashScan.** Open `https://hashscan.io/testnet/contract/0.0.xxxxxxx`, go to the contract's
+transactions, and look for `CONTRACTCALL` entries whose payer is the contract and whose
+`scheduled` flag is true. There is no `from` address that belongs to you or the server.
 
-These steps test the routes directly with `curl`. The full browser/agent payment loop lands in
-Iteration 4; here we confirm uploads work and that a private file produces a well-formed `402`.
-
-### 3.1 Prerequisites for this iteration
-
-1. `FileRegistry` deployed and `deployedContracts.ts` populated with `address` + `hederaContractId` (Iteration 1.3), **or** set
-   `FILE_REGISTRY_ADDRESS` / `FILE_REGISTRY_HEDERA_CONTRACT_ID` in `packages/nextjs/.env`.
-2. The infra stack running (`yarn infra:up`) so MinIO (`:9000`) and the facilitator (`:4020`)
-   are reachable.
-3. Next.js env configured:
+**Mirror node**, which is where the numbers below were measured:
 
 ```bash
-cp packages/nextjs/.env.example packages/nextjs/.env
-# Defaults (localhost MinIO + facilitator, testnet RPC) work out of the box for local dev.
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions?\
+account.id=0.0.10406083&transactiontype=contractcall&order=desc&limit=25" \
+  | python3 -c 'import sys,json
+for t in json.load(sys.stdin)["transactions"]:
+    print(t["consensus_timestamp"], t["result"], "scheduled=%s" % t["scheduled"], t["charged_tx_fee"])'
 ```
 
-### 3.2 Start the app
+### What was actually measured
 
-```bash
-yarn next:dev       # Next.js dev server on http://localhost:3000
+The x402 payment settled through Blocky402: `0.0.7162784@1788780154.225876092`.
+`subscribe()` used **1,582,554** gas against a 2,000,000 limit.
+
+Three scheduled `CONTRACTCALL`s then executed with `scheduled=True`, `SUCCESS`:
+
+| Consensus timestamp | Charged | What happened |
+| --- | --- | --- |
+| `1788780226.016366208` | 154,896,000 tinybar = **1.54896 HBAR** | renewed **and re-armed** the next |
+| `1788780286.019735208` | 154,896,000 tinybar = **1.54896 HBAR** | renewed **and re-armed** the next |
+| `1788780346.345418842` | 5,067,825 tinybar = **0.0507 HBAR** | hit the gas-reserve guard, emitted `Lapsed`, did **not** re-arm |
+
+The 30× gap between the first two and the third is the whole cost story. Re-arming the next
+renewal — the `scheduleCall` into `0x…016b` — is about **97%** of what a renewal costs. The
+renewal's own bookkeeping is the cheap 0.05 HBAR part.
+
+### The economics, stated honestly
+
+Hedera refunds at most 20% of an unused gas limit, so `RENEWAL_GAS_LIMIT = 2,500,000` is
+charged at roughly 2,000,000 gas whether or not it is used.
+
+**At 1 HBAR per period, this product loses money on every renewal**, because each renewal costs
+about 1.55 HBAR out of the seller's gas reserve. That is the real constraint of on-chain
+self-renewal and it is not solved here. Two things move it:
+
+1. Right-sizing `RENEWAL_GAS_LIMIT` toward the ~1.5M actually used recovers roughly a third.
+2. Pricing a period above the renewal cost is what actually makes it solvent.
+
+---
+
+## 9. Troubleshooting
+
+### 9.1 `RETAINER_SERVER_KEY` missing — payment settles but no subscription opens
+
+**Symptom.** The paid request returns `200` with:
+
+```jsonc
+"subscription": {
+  "opened": false,
+  "error": "RETAINER_SERVER_KEY is not configured; the server cannot forward settled payments on-chain"
+}
 ```
 
-### 3.3 Request an upload URL and PUT a file
+The agent's money is gone — settlement already happened — and every later request goes back to
+`402` because `hasAccess(agent)` is still `false`.
 
-```bash
-# 1) Ask the server for a presigned upload URL
-RESP=$(curl -s -X POST localhost:3000/api/files/upload \
-  -H 'content-type: application/json' \
-  -d '{"name":"hello.txt","mimeType":"text/plain"}')
-echo "$RESP"
-# => {"objectKey":"2026-06-05/<uuid>-hello.txt","uploadUrl":"http://localhost:9000/...","contentType":"text/plain","expiresIn":300}
+**Why.** `RETAINER_SERVER_KEY` is the ECDSA key that calls `subscribeFor(agent)`. It is the
+join between the x402 rail and the chain. Without it the two are unrelated events.
 
-# 2) Upload the bytes straight to MinIO with the returned URL
-URL=$(echo "$RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["uploadUrl"])')
-echo "hello x402" > /tmp/hello.txt
-curl -s -X PUT "$URL" -H 'content-type: text/plain' --data-binary @/tmp/hello.txt -o /dev/null -w '%{http_code}\n'
-# => 200
-```
+**Fix.** Set `RETAINER_SERVER_KEY` in `packages/nextjs/.env` to the seller account's ECDSA
+private key and restart `yarn next:dev` (Next.js reads it at request time in a Node runtime
+route, but a stale dev server can hold an old module). Then confirm:
 
-The object now exists in the private bucket. In a real flow the browser next submits a native
-Hedera `ContractExecuteTransaction` for `FileRegistry.registerFile(...)` via HashPack; use the
-**Upload** page at `/files/upload` or register via Hardhat console / cast against the JSON-RPC relay.
+- the key's account holds HBAR — `subscribeFor` is a real transaction and pays its own gas
+- `RETAINER_ACCESS_ADDRESS` (or `deployedContracts.ts`) points at the deployed contract
 
-### 3.4 Public download returns `200` + a presigned URL
+Other failures reported the same honest way, all of them from `subscribeFor`:
 
-For a file registered with `isPublic = true`:
-
-```bash
-curl -s "localhost:3000/api/files/<fileId>/download"
-# => {"url":"http://localhost:9000/x402-files/...<signed>","file":{...,"isPublic":true}}
-```
-
-Following `url` downloads the bytes. No payment header is involved.
-
-### 3.5 Private download returns a well-formed `402`
-
-For a file registered with `isPublic = false` and a non-zero `priceTinybar`, calling without a
-payment header returns the x402 challenge:
-
-```bash
-curl -s -i "localhost:3000/api/files/<fileId>/download"
-```
-
-Expected:
-- Status `402 Payment Required`.
-- A `PAYMENT-REQUIRED` response header (base64 challenge for x402 clients).
-- JSON body whose `accepts[0]` advertises `scheme: "exact"`, `network: "hedera:testnet"`,
-  `payTo` = the file's account id, the price in tinybars, and `extra.feePayer` from the
-  facilitator.
-
-Sanity checks:
-- Unknown / malformed id → `400`.
-- Unregistered id → `404`.
-- Registry not deployed → `503` with a clear message.
-- Facilitator down → `502`.
-
-> Completing the payment (signing, retrying with `PAYMENT-SIGNATURE`, then receiving a
-> `200` + `PAYMENT-RESPONSE` receipt and the presigned URL) is exercised end-to-end in
-> Iteration 4 with the HashPack browser client and the Node agent buyer script.
-
-## Iteration 4 — Client + UI
-
-End-to-end upload, marketplace listing, and pay-per-download on testnet via HashPack (WalletConnect) or the Node agent script.
-
-### Prerequisites
-
-- Iterations 1–3 complete (registry deployed with `address` + `hederaContractId` in `deployedContracts.ts`, MinIO + facilitator running, `yarn next:dev` up).
-- `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` set in `packages/nextjs/.env` (reused for HashPack).
-- `NEXT_PUBLIC_X402_NETWORK=hedera:testnet` matches `X402_NETWORK`.
-- HashPack mobile app on the same Hedera testnet, funded with testnet HBAR.
-
-### A — Upload and browse (browser)
-
-1. Connect **HashPack** in the header — approve the WalletConnect session on the native **`hedera`** namespace.
-2. Upload at `/files/upload` — after MinIO PUT, HashPack prompts to sign the native `registerFile` contract execute.
-3. Open `/files` — the marketplace lists entries via on-chain `getFiles` (polls every 10s). New uploads appear after registration confirms.
-
-### B — Pay with HashPack (browser)
-
-1. Open a **private** file at `/files/<id>`.
-2. Ensure HashPack is connected (same session as upload).
-3. Click **Pay … HBAR & download** — HashPack prompts to partially sign the native HBAR transfer.
-4. After settlement you should get a presigned download URL and a tx receipt on the page.
-
-### C — Pay from the Node agent
-
-```bash
-RESOURCE_URL="http://localhost:3000/api/files/<fileId>/download" \
-  BUYER_ACCOUNT_ID=0.0.xxxx BUYER_PRIVATE_KEY=0x... \
-  yarn x402:buy
-```
-
-Expect `200` with a presigned URL and `PAYMENT-RESPONSE` settlement metadata.
-
-## Environment variables
-
-Three `.env` files configure local development. Copy each from its `.env.example` before
-running the stack.
-
-### Root `.env` (docker-compose / `yarn infra:up`)
-
-| Variable | Purpose |
+| Reverted with | Cause |
 | --- | --- |
-| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | MinIO credentials (default `minioadmin`) |
-| `S3_BUCKET` | Private bucket name (default `x402-files`) |
-| `FACILITATOR_PORT` | Host port for the facilitator (default `4020`) |
-| `X402_NETWORK` | CAIP-2 network the facilitator settles on (`hedera:testnet`) |
-| `FACILITATOR_ACCOUNT_ID` | ECDSA fee-payer account (`0.0.x`) advertised in `GET /supported` |
-| `FACILITATOR_PRIVATE_KEY` | ECDSA key used at `POST /settle` to co-sign, pay network fees, and submit the buyer’s partially signed transfer |
-| `HEDERA_NODE_URL` | Optional custom consensus node RPC |
+| `InsufficientBalance` | The forwarded value was below one period. `RETAINER_PRICE_TINYBAR` in `.env` does not match the contract's `pricePerPeriod` |
+| `AlreadyActive` | That agent already has an open subscription |
+| `DustAmount` | Forwarded value rounded to 0 tinybar |
 
-### `packages/nextjs/.env` (resource server + browser client)
+To recover a payment that settled without opening a subscription, credit the agent manually —
+`creditFor(agent)` is permissionless and only ever adds refundable money to the named agent's
+pot — then have the agent (or the seller) open the subscription.
 
-| Variable | Purpose |
+### 9.2 Gas reserve exhausted — `Lapsed("gas reserve will not cover the next renewal")`
+
+**Symptom.** A renewal succeeds, extends the window, and then access simply stops at the next
+expiry. The mirror node shows a cheap scheduled `CONTRACTCALL` (~0.05 HBAR instead of ~1.55)
+and no new schedule after it. `/api/retainer/status` shows `renewalsReserveCanArm: 0`, and the
+next scheduled call emits:
+
+```
+Lapsed(agent, "gas reserve will not cover the next renewal")
+```
+
+**Why.** `_armRenewal` checks `gasReserve >= RENEWAL_COST_ESTIMATE` (200,000,000 tinybar =
+2 HBAR) **before** scheduling, and lapses loudly rather than arming a call that cannot pay for
+itself. The third scheduled call in §8 is exactly this: it renewed, then found the reserve
+short and stopped. A subscription that ends this way ends visibly.
+
+**Fix.** Top up the reserve. `fundGasReserve()` is `payable` and anyone may contribute. Any
+tool that can send a transaction will do; `cast` (Foundry) is shown because it is one line:
+
+```bash
+cast send <RETAINER_ACCESS_ADDRESS> "fundGasReserve()" \
+  --value 8ether --rpc-url https://testnet.hashio.io/api --private-key <SELLER_KEY>
+```
+
+`value` on the wire is **weibar** (1 HBAR = 1e18); the contract stores **tinybar**
+(1 HBAR = 1e8). `8ether` here means 8 HBAR. Then check `renewalsRemaining()`, or read
+`renewalsReserveCanArm` from `/api/retainer/status`.
+
+A lapsed subscription does not resume by itself — the agent subscribes again. Note that the
+reserve is a *seller* cost: at the current price, refilling it is the losing side of §8.
+
+Two neighbouring lapse reasons, same mechanism:
+
+- `Lapsed("balance will not cover the next period")` — the agent's own money ran out. Expected
+  after `RETAINER_PERIODS_PER_PURCHASE` periods. Not an error.
+- `Lapsed("no schedule capacity at that second")` — `hasScheduleCapacity` said the network is
+  full at that exact second. Asking first is what turns this into a clean lapse instead of a
+  revert.
+
+### 9.3 Terms not set — `TermsNotSet`
+
+**Symptom.** `subscribe()` / `subscribeFor()` revert with `TermsNotSet`. The paid request
+returns `200` with `subscription.opened: false` and that error.
+
+**Why.** The constructor only sets terms when `pricePerPeriod_` or `periodSeconds_` is non-zero.
+Deploying with both at zero leaves the contract live with no terms, and nothing can subscribe.
+
+**Fix.** Call `setTerms` from the beneficiary account:
+
+```bash
+cast send <RETAINER_ACCESS_ADDRESS> "setTerms(uint256,uint32)" 100000000 120 \
+  --rpc-url https://testnet.hashio.io/api --private-key <SELLER_KEY>
+```
+
+`InvalidTerms` instead means `pricePerPeriod == 0` or `periodSeconds < 61`
+(`MIN_PERIOD_SECONDS`). The floor exists because `renew()` is public and gated on expiry; a
+tiny period would hold that gate permanently open, and every forced renewal burns the
+contract's own HBAR.
+
+Then make sure `RETAINER_PRICE_TINYBAR` in `packages/nextjs/.env` equals the on-chain
+`pricePerPeriod`, or §9.1's `InsufficientBalance` is next.
+
+### 9.4 Other responses from the gate
+
+| Response | Meaning |
 | --- | --- |
-| `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | WalletConnect project id (HashPack via Reown AppKit) |
-| `HEDERA_RPC_URL` | RPC for on-chain `FileRegistry` reads |
-| `FILE_REGISTRY_ADDRESS` | Optional EVM address override when not in `deployedContracts.ts` |
-| `FILE_REGISTRY_HEDERA_CONTRACT_ID` / `NEXT_PUBLIC_FILE_REGISTRY_HEDERA_CONTRACT_ID` | Optional native contract id override (`0.0.x`) for HashPack contract executes |
-| `FACILITATOR_URL` | x402 facilitator base URL (default `https://api.testnet.blocky402.com`) |
-| `X402_NETWORK` | Server-side x402 network id |
-| `NEXT_PUBLIC_X402_NETWORK` | Browser x402 client network (must match `X402_NETWORK`) |
-| `S3_ENDPOINT` | MinIO API URL (default `http://localhost:9000`) |
-| `S3_REGION` | S3 region label (any value for MinIO) |
-| `S3_BUCKET` | Bucket name (must match root `.env`) |
-| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | MinIO credentials |
-| `S3_FORCE_PATH_STYLE` | `true` for MinIO; `false` only for AWS virtual-hosted buckets |
+| `400 Provide ?agent=<evm address>` | Missing or malformed agent address |
+| `500 RETAINER_PAY_TO is not configured` | No seller account id set |
+| `502 Payment facilitator unavailable` | Blocky402 unreachable; check `FACILITATOR_URL` |
+| `502 Failed to read RetainerAccess` | RPC or ABI problem; check `HEDERA_RPC_URL` and that the address really holds this contract |
+| `503 RetainerAccess is not deployed on the target network` | Neither `RETAINER_ACCESS_ADDRESS` nor `deployedContracts.ts` resolves an address for chain 296 |
 
-### `facilitator/.env` (standalone facilitator, optional)
+### 9.5 `subscribe()` reverts on testnet with no readable reason
 
-Used when running the facilitator outside Docker (`cd facilitator && npm start`). Same
-`FACILITATOR_ACCOUNT_ID`, `FACILITATOR_PRIVATE_KEY`, and `X402_NETWORK` as the root `.env`.
+`packages/hardhat/scripts/diagnose.ts` isolates it: it checks the Schedule Service system
+contract actually has code at `0x…016b`, decodes the raw revert data against the ABI (including
+`ScheduleFailed(int64)` with the Hedera response code), and tests whether `fund()` alone
+succeeds — which separates a payment-path failure from a `scheduleCall` failure.
 
-### Facilitator
-
-The default is the **hosted Blocky402 testnet facilitator**
-(`https://api.testnet.blocky402.com`) — no API key or account required, and it supplies its
-own fee payer. Settlement goes through it.
-
-The self-hosted facilitator in `facilitator/` and `docker-compose.yml` is retained as a
-**local development fallback**. To use it instead, set `FACILITATOR_URL=http://localhost:4020`
-in `packages/nextjs/.env`.
+```bash
+cd packages/hardhat
+yarn hardhat run scripts/diagnose.ts --network hederaTestnet
+```
 
 ---
 
-## Testnet caveats
+## 10. Testnet notes
 
-- **ECDSA keys only** — x402 on Hedera requires ECDSA accounts. Create testnet accounts via the
-  [Hedera Portal](https://portal.hedera.com/) and fund them with HBAR.
-- **Buyer needs HBAR** — every private download is a fresh native HBAR transfer. No token
-  association is required for HBAR (`0.0.0`).
-- **Facilitator fee payer** — HashPack cannot complete x402 settlement alone. The facilitator’s
-  ECDSA account co-signs each transfer, pays Hedera network fees from its HBAR balance, and
-  broadcasts the transaction. Keep `FACILITATOR_PRIVATE_KEY` server-side only.
-- **Testnet settlement** — MinIO and the facilitator run locally, but Hedera payments hit
-  **testnet** (or mainnet if configured). The local Hedera fork is not used for x402.
-- **Native HashPack signing** — registry writes use `hedera_signAndExecuteTransaction`; x402
-  payments use `hedera_signTransaction` (partial sign). Both use the `hedera` WalletConnect
-  namespace — not wagmi / `eip155`.
-- **Marketplace listing** — `/files` reads `getFileCount` + `getFiles`, not `eth_getLogs`.
-  Hedera JSON-RPC limits log queries to a **7-day** window (timestamp-based “blocks”).
-- **Docker required** — `yarn infra:up` starts MinIO and the facilitator containers.
-- **Node.js** — Node 20 LTS by default; optional Node 22 for `yarn next:dev` / `yarn next:build` only
-  (see [README § Node.js version](README.md#nodejs-version)). A harmless `NodeVersionSupportWarning`
-  from `@aws-sdk/client-s3` on Node 20 can be ignored.
-- **Pin `@x402/hedera`** — the package is young; expect API churn across releases.
-- **No on-chain privacy** — transfer amounts, accounts, and settlement txs are public on Hedera.
-
----
-
+- **ECDSA only.** x402 on Hedera requires ECDSA accounts.
+- **Units are asymmetric.** `value` on the wire is weibar (1 HBAR = 1e18); `msg.value` as the
+  contract sees it, and everything stored on-chain, is tinybar (1 HBAR = 1e8). A non-zero value
+  below 1e10 weibar is rejected outright by the relay. A conversion missed on the way *out*
+  underpays a refund by 1e10 without reverting — which is why §7.6 measures the refund against
+  a wallet balance.
+- **The contract pays for its own future.** Scheduled executions are charged to the contract,
+  not to whoever benefits. `gasReserve` is kept strictly separate from subscriber money
+  (`_owed`) and seller revenue (`revenue`); `_solvent()` asserts the balance covers all three
+  after every state change.
+- **Nothing here is private.** Amounts, accounts and settlement transactions are public on
+  Hedera. That is what makes the proof in §8 checkable, and it is also a real property of the
+  product.

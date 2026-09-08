@@ -20,18 +20,31 @@ const deployRetainerAccess: DeployFunction = async function (hre: HardhatRuntime
   const periodSeconds = Number(process.env.RETAINER_PERIOD_SECONDS ?? 3600); // 1 hour
 
   // The beneficiary collects charged periods. Deployer by default.
-  // The deploy value seeds the gas reserve: the network charges the CONTRACT for each
-  // scheduled renewal (~1.55 HBAR measured on testnet), so a self-renewing contract has to
-  // hold gas for its own future. Seeded for ~4 renewals.
+  //
+  // The reserve is funded by a SEPARATE transaction below, not by a deploy value. Hedera credits
+  // a contract-create's initial balance at the HAPI level, outside the EVM frame, so a payable
+  // constructor sees msg.value == 0 while the contract really does hold the money — it arrives
+  // and is never booked. Funding with an ordinary call avoids that entirely.
   const deployment = await deploy("RetainerAccess", {
     from: deployer,
     args: [deployer, pricePerPeriod, periodSeconds],
-    value: (8n * 10n ** 18n).toString(), // 8 HBAR, in weibar
     log: true,
     autoMine: true,
     gasLimit: "4000000",
     gasPrice: await getDeployGasPrice(hre),
   });
+
+  // The network charges the CONTRACT for each scheduled renewal (~1.55 HBAR measured on
+  // testnet), so a self-renewing contract has to hold gas for its own future. Seed ~4.
+  const reserveHbar = process.env.RETAINER_RESERVE_HBAR ?? "8";
+  if (deployment.newlyDeployed) {
+    const signer = await hre.ethers.getSigner(deployer);
+    const c = await hre.ethers.getContractAt("RetainerAccess", deployment.address, signer);
+    // Value on the wire is weibar (1e18); the EVM will see tinybar (1e8).
+    const tx = await c.fundGasReserve({ value: hre.ethers.parseEther(reserveHbar), gasLimit: 200_000 });
+    await tx.wait();
+    console.log(`Funded gas reserve with ${reserveHbar} HBAR — arms ${await c.renewalsRemaining()} renewals`);
+  }
 
   const chainId = Number(await hre.network.provider.send("eth_chainId", []));
 

@@ -4490,9 +4490,9 @@ __metadata:
   linkType: hard
 
 "@toon-format/toon@npm:^2.1.0":
-  version: 2.3.0
-  resolution: "@toon-format/toon@npm:2.3.0"
-  checksum: 67bb8d69edd25a3aeceaccee3d4e01850de12585174a229ca567e634d30aefffc1fe01177964eab8bf7c91f17ca2921958f8a896c537086027345a0ee840b028
+  version: 2.3.1
+  resolution: "@toon-format/toon@npm:2.3.1"
+  checksum: 1123ddb7b8489d98c1e082ac260ff631715da2e96ff215746f10795c08208d39375f06a4d453db654f958373408c83ef2404b51f9ee00569772ba21807af8a7a
   languageName: node
   linkType: hard
 

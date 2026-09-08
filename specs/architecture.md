@@ -230,17 +230,23 @@ Hedera **testnet** throughout. Blocky402's hosted testnet facilitator advertises
 `hedera:testnet`, scheme `exact`, x402Version 2, and supplies its own fee payer — so no
 self-hosted facilitator, and no Docker, is required.
 
-Two deployments, and they are not the same code. Keeping them apart is the point:
+Three deployments, and they are not the same code. Keeping them apart is the point:
 
 - **The measured one** — `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A`,
   <https://hashscan.io/testnet/contract/0.0.10406083>. Every cost figure above came off this
   contract. It predates the later contract fixes and carries an older constructor and ABI, so
   it does **not** run `RetainerAccess.sol` as it stands today.
+- **The intermediate one** — `0.0.10414167` / `0xd3A218AD4c817B14Cc754e4c996A95435155a27B`,
+  the units-corrected source before metering was added. Seven unattended renewals ran on it,
+  and the agent-script transcript in `docs/proof.md` was recorded against it.
 - **The current one** — `0.0.10415845` / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931`,
   <https://hashscan.io/testnet/contract/0.0.10415845>. This is the address in
   `packages/nextjs/contracts/deployedContracts.ts`, so it is the contract the resource server
-  actually talks to. It has renewed itself once unattended; it has not been run to exhaustion,
-  which is why the cost table is still quoted from the older deployment.
+  actually talks to. It has run the loop to exhaustion once — eight unattended renewals from
+  one ordinary `renew()` to a loud `Lapsed` — reproducing the cost split at the current gas
+  price, and one of its scheduled executions reverted with the contract's own `Insolvent()`
+  guard. The cost table is still quoted from the first deployment because that is the run the
+  gas-economics note was written against; the current figures sit next to it in `docs/proof.md`.
 
 [`docs/proof.md`](../docs/proof.md) holds the mirror-node evidence for both, with the exact
 requests to re-check it.

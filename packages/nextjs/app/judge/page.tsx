@@ -30,19 +30,47 @@ const AGENT_LIVE = "0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66";
 const BASE = "https://retainer.edycu.dev";
 const CONTRACT_ID = "0.0.10415845";
 const CONTRACT_EVM = "0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931";
-const RENEWAL_TS = "1788827767.015718559";
+/** The first of eight renewals the network executed by itself on the current deployment (2026-09-08). */
+const RENEWAL_TS = "1788844334.069565823";
+/** Every one of those eight, plus the ordinary renew() that armed the first, share this transaction id. */
+const CURRENT_CHAIN_TX = "0.0.7314364-1788844238-651641588";
+/** The scheduled execution on the current deployment that reverted — limitation 3. */
+const REVERT_TS = "1788840415.078121802";
 const REPO = "https://github.com/edycutjong/retainer";
 
 const receipts: [string, React.ReactNode][] = [
-  ["x402 payment settled through Blocky402", <code key="p">0.0.7162784@1788830067.404863715</code>],
-  ["Unattended renewals executed by the network", "4 across two deployments, all scheduled=true SUCCESS"],
-  ["Cost of one self-re-arming renewal", <strong key="a">1.54896 HBAR</strong>],
-  ["Cost of a renewal that does not re-arm", <strong key="b">0.0507 HBAR</strong>],
+  [
+    "x402 payment settled through Blocky402",
+    <>
+      <code key="p">0.0.7162784@1788840225.936068496</code> — 3 HBAR, agent → seller, fee paid by the facilitator; it
+      opened the current deployment&rsquo;s subscription
+    </>,
+  ],
+  [
+    "Unattended renewals executed by the network",
+    <>
+      <strong>19</strong> across three deployments (3 · 7 · 9), every one <code>CONTRACTCALL</code>{" "}
+      <code>scheduled=true</code> <code>SUCCESS</code> with a <code>Renewed</code> event. One further scheduled
+      execution reverted — limitation 3.
+    </>,
+  ],
+  [
+    "Cost of one self-re-arming renewal",
+    <>
+      <strong key="a">1.54896 HBAR</strong> on the first deployment; <strong>1.54036 HBAR</strong> on the current one
+    </>,
+  ],
+  [
+    "Cost of a renewal that does not re-arm",
+    <>
+      <strong key="b">0.0507 HBAR</strong> on the first deployment; <strong>0.0522 HBAR</strong> on the current one
+    </>,
+  ],
   [
     "What that ~30× gap proves",
     <>
       re-arming — the <code>scheduleCall</code> into <code>0x16b</code> — is <strong>~97%</strong> of what a renewal
-      costs
+      costs, on both deployments
     </>,
   ],
   ["Gas used, subscribe() on testnet", "1,582,554 (limit 2,000,000)"],
@@ -122,13 +150,15 @@ export default function JudgePage() {
         </li>
 
         <li>
-          <h3>Read an agent that already paid.</h3>
+          <h3>Read an agent that has paid before.</h3>
           <pre className={styles.pre}>
             <code>{`curl -s "${BASE}/api/retainer/status?agent=${AGENT_LIVE}"`}</code>
           </pre>
           <p>
-            No 402. The window, the metered allowance, and the address of the <em>pending scheduled renewal</em> come
-            straight off the chain. Nothing here is served from a database.
+            No 402. Whatever the chain says about this agent right now — window open, or lapsed with{" "}
+            <code>balanceTinybar: &quot;0&quot;</code> after its last run ended — the balance, the metered allowance and
+            the address of any <em>pending scheduled renewal</em> come straight off the contract. Nothing here is served
+            from a database, and nothing is made to look alive.
           </p>
         </li>
 
@@ -144,9 +174,14 @@ export default function JudgePage() {
               One renewal the <strong>network executed on its own</strong> — <code>CONTRACTCALL</code>,{" "}
               <code>scheduled=true</code>, <code>SUCCESS</code>:{" "}
               <a href={`https://hashscan.io/testnet/transaction/${RENEWAL_TS}`}>{RENEWAL_TS}</a>. No transaction was
-              sent to trigger it.
+              sent to trigger it. It is the first of eight in a row; all eight, and the one ordinary call that armed the
+              first, come back from one mirror-node request:
             </li>
           </ul>
+          <pre className={styles.pre}>
+            <code>{`curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/${CURRENT_CHAIN_TX}" \\
+  | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\\(.scheduled)", .result, "fee=\\(.charged_tx_fee)"] | @tsv'`}</code>
+          </pre>
         </li>
 
         <li>
@@ -239,10 +274,19 @@ yarn next:test        # 10 unit tests, 202,059 amounts across the unit boundary`
           rather than discovered.
         </li>
         <li>
-          <strong>The full lapse cycle was measured on the previous deployment.</strong> <code>0.0.10406083</code> ran
-          to exhaustion and produced every cost number above; the current <code>{CONTRACT_ID}</code> has completed one
-          unattended renewal and a cancel, not a full lapse. The two are one revision apart and{" "}
-          <a href={`${REPO}/blob/main/docs/proof.md`}>docs/proof.md</a> says exactly where they differ.
+          <strong>One scheduled renewal on the deployed source reverted.</strong> At{" "}
+          <a href={`https://hashscan.io/testnet/transaction/${REVERT_TS}`}>{REVERT_TS}</a> the network fired{" "}
+          <code>renew()</code> on <code>{CONTRACT_ID}</code> and the call came back{" "}
+          <code>CONTRACT_REVERT_EXECUTED</code> with the contract&rsquo;s own <code>Insolvent()</code> guard — the check
+          that the three money pots never exceed <code>address(this).balance</code>. The account&rsquo;s real balance at
+          that second, reconstructed from the mirror node, was 2,139,131,760 tinybar against pots totalling
+          1,900,000,000, so the balance the EVM exposed <em>during</em> the scheduled execution was lower than the
+          account&rsquo;s — consistent with Hedera reserving the call&rsquo;s full gas cost on the payer before it runs.
+          The subscription was restarted by hand (<code>creditFor</code>, then one ordinary <code>renew()</code>) and
+          the network then executed eight renewals unattended to a loud lapse. The guard is right to exist and wrong to
+          count that reservation; the fix needs a redeploy and is not made here. Three deployments exist —{" "}
+          <code>0.0.10406083</code>, <code>0.0.10414167</code>, <code>{CONTRACT_ID}</code> — and{" "}
+          <a href={`${REPO}/blob/main/docs/proof.md`}>docs/proof.md</a> keeps them apart.
         </li>
       </ol>
 

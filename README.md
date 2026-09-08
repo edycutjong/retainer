@@ -19,6 +19,7 @@ Hedera Schedule Service extends by itself.</p>
 [![Live Contract](https://img.shields.io/badge/⛓️_HashScan-0.0.10415845-8b5cf6?style=for-the-badge)](https://hashscan.io/testnet/contract/0.0.10415845)
 [![Built for ETHOnline 2026](https://img.shields.io/badge/ETHGlobal-ETHOnline_2026-1f6feb?style=for-the-badge)](https://ethglobal.com/events/ethonline2026)
 [![For judges](https://img.shields.io/badge/⚖️_For-Judges-f59e0b?style=for-the-badge)](https://retainer.edycu.dev/judge)
+[![Version](https://img.shields.io/badge/version-v0.0.0--dev-8259ef?style=for-the-badge)](https://github.com/edycutjong/retainer/commits/main)
 
 <br/>
 
@@ -290,25 +291,40 @@ Two details that only show up on a real network:
 
 ## ⛓️ Live Deployment — proof on Hedera testnet
 
-There are two deployments on testnet, and they are not interchangeable:
+There are three deployments on testnet, and they are not interchangeable:
 
 | | Contract | What it is |
 |---|---|---|
-| **Current** | `0.0.10415845` / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` · [HashScan](https://hashscan.io/testnet/contract/0.0.10415845) | `RetainerAccess.sol` as it stands in this repo. It is what `packages/nextjs/contracts/deployedContracts.ts` points at, so it is the contract the resource server talks to. |
-| **First** | `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A` · [HashScan](https://hashscan.io/testnet/contract/0.0.10406083) | The deployment that produced every gas and fee measurement below. It predates the current constructor and ABI, so do not read it as a copy of the current source. |
+| **Current** | `0.0.10415845` / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` · [HashScan](https://hashscan.io/testnet/contract/0.0.10415845) | `RetainerAccess.sol` as it stands in this repo (`7400cd7`). It is what `packages/nextjs/contracts/deployedContracts.ts` points at, so it is the contract the resource server talks to. **9 unattended renewals**, one full lapse cycle, and one scheduled execution that reverted (below). |
+| Intermediate | `0.0.10414167` / `0xd3A218AD4c817B14Cc754e4c996A95435155a27B` · [HashScan](https://hashscan.io/testnet/contract/0.0.10414167) | The units-corrected source before metering (`9eb39e3`). **7 unattended renewals**, one `cancel()` that deleted a pending schedule, and the agent-script transcript at the end of `docs/proof.md`. |
+| **First** | `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A` · [HashScan](https://hashscan.io/testnet/contract/0.0.10406083) | The deployment that produced the cost table below. It predates the current constructor and ABI, so do not read it as a copy of the current source. **3 unattended renewals.** |
 
-On the current deployment, one renewal has already executed unattended — `CONTRACTCALL`,
-`scheduled=true`, `SUCCESS` at `1788827767.015718559`, charged 153,816,728 tinybar to the
-contract — and `cancel()` then deleted the pending schedule `0.0.10414197` and returned its
-reserved gas. The cost measurements below are still quoted from the first deployment, because
-that is the run that was measured end to end.
+**19 renewals the network executed by itself**, across the three — every one a `CONTRACTCALL`
+with `scheduled=true` and `SUCCESS`, each with a `Renewed` event; the count and the commands
+that reproduce it are in [`docs/proof.md`](docs/proof.md). On the current deployment the loop
+ran eight times in a row on 2026-09-08 with no submitter, from one ordinary `renew()` to a loud
+`Lapsed`, and reproduced the cost split below at the current gas price: 154,036,168 tinybar for
+a renewal that re-arms, 5,222,880 for the one that does not. All eight come back from a single
+mirror-node request:
 
-**An x402 payment settled through Blocky402:**
-[`0.0.7162784@1788780154.225876092`](https://hashscan.io/testnet/transaction/1788780164.857913104)
+```bash
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7314364-1788844238-651641588" \
+  | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\(.scheduled)", .result, "fee=\(.charged_tx_fee)"] | @tsv'
+```
 
-**Three renewals the network executed on its own**, all `CONTRACTCALL` with `scheduled=true`
-and status `SUCCESS`, read back from the mirror node. No transaction was sent to trigger any
-of them:
+One scheduled execution on the current deployment **reverted** — `1788840415.078121802`,
+`CONTRACT_REVERT_EXECUTED`, with the contract's own `Insolvent()` guard, while the account held
+239 million tinybar more than its three pots. It is the third of the honest limitations in
+[`JUDGE.md`](JUDGE.md) and is worked through in `docs/proof.md`; it is not fixed here.
+
+**An x402 payment settled through Blocky402** (the one that opened the current deployment's
+subscription, 3 ℏ agent → seller, fee paid by the facilitator):
+[`0.0.7162784@1788840225.936068496`](https://hashscan.io/testnet/transaction/1788840233.455239257) —
+and the first run's: [`0.0.7162784@1788780154.225876092`](https://hashscan.io/testnet/transaction/1788780164.857913104)
+
+**The three renewals the first deployment's run produced**, all `CONTRACTCALL` with
+`scheduled=true` and status `SUCCESS`, read back from the mirror node. No transaction was sent
+to trigger any of them:
 
 | Consensus timestamp | Charged to the contract | What happened |
 |---|---|---|

@@ -41,7 +41,7 @@ export const getMetadata = ({
           url: imageUrl,
           width: 2400,
           height: 1260,
-          alt: "Retainer — 1 signature, 4 unattended renewals: the access window drains to zero and the network's own scheduled call refills it",
+          alt: "Retainer — one signature per subscription, 19 unattended renewals: the access window drains to zero and the network's own scheduled call refills it",
         },
       ],
     },

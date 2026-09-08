@@ -10,46 +10,141 @@ so the local test suite can exercise the scheduling paths (a hardhat node has no
 contract at `0x16b`). The mock proves nothing about the real network. **This file is where
 that gap is closed** — the run below is the real Schedule Service calling the real contract.
 
-Everything here was read back from `https://testnet.mirrornode.hedera.com` on 2026-09-08.
+Everything here was read back from `https://testnet.mirrornode.hedera.com` on 2026-09-08; the
+"current deployment" section and the correction under "Read this first" were added the same
+evening after every citation was re-checked against `entity_id`.
 
 ---
 
-## Read this first: the measured deployment is not the current one
+## Read this first: three deployments, and which one each number came from
 
 The contract at **0.0.10406083** is the deployment that produced the run recorded below. It
 predates the contract fixes made after that run, so **it does not run the code currently in
 `packages/hardhat/contracts/RetainerAccess.sol`**. Treat this address as the source of the
 evidence, not as a copy of the current source.
 
-The current source is deployed separately, at
-**[`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845)** /
-`0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` — the address in
-`packages/nextjs/contracts/deployedContracts.ts`, and therefore the one the resource server
-talks to. It carries the current ABI (`subscribeFor`, `creditFor`, `syncReserve`, `setTerms`,
-`MIN_PERIOD_SECONDS`), and it has already renewed itself once unattended:
+Two later deployments exist, and an earlier revision of this file conflated them:
 
-```bash
-curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions?timestamp=1788827767.015718559" \
-  | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\(.scheduled)", .result, "fee=\(.charged_tx_fee)"] | @tsv'
-# 1788827767.015718559  CONTRACTCALL  scheduled=true  SUCCESS  fee=153816728
-```
+| | Contract | Deployed by | What it did on chain |
+|---|---|---|---|
+| first, **measured** | `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A` | `818c517` | the run below: 1 subscription, **3** unattended renewals (2 re-armed at 154,896,000 tinybar, 1 lapsed at 5,067,825) |
+| intermediate | `0.0.10414167` / `0xd3A218AD4c817B14Cc754e4c996A95435155a27B` | `9eb39e3` (units fix, before metering) | 4 subscriptions, **7** unattended renewals (4 re-armed at 153,816,728, 3 lapsed at 5,027,776), one `cancel()` that deleted pending schedule `0.0.10414197`; the agent-script run at the end of this file |
+| **current** | [`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845) / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` | `7400cd7` (metering) | the address in `packages/nextjs/contracts/deployedContracts.ts`, so the one the resource server talks to. **9** unattended renewals (8 re-armed, 1 lapsed) and **one scheduled execution that reverted** — see "The current deployment" below |
 
-`cancel()` then deleted the pending schedule `0.0.10414197` — the mirror node reports it
-`deleted: true` with no `executed_timestamp` — which is `deleteSchedule` returning the reserved
-gas rather than abandoning it. What that deployment has **not** done is run to exhaustion, which
-is why the cost measurements below still come from `0.0.10406083`.
+**19 unattended renewals across the three** — `CONTRACTCALL`, `scheduled=true`, `SUCCESS`, each
+with a `Renewed` event. Counted on the mirror node on 2026-09-08 with the commands in "Re-verify
+it yourself". A twentieth scheduled execution, on the current deployment, reverted; it is
+recorded, not omitted.
 
-Two details visible in the data below make the difference concrete, and are worth knowing
-before anyone tries to reconcile them with the source:
+**Correction, 2026-09-08.** Until this revision the file said the current deployment "has already
+renewed itself once unattended" and cited `1788827767.015718559`. That transaction is real,
+`scheduled=true` and `SUCCESS` — but its `entity_id` is `0.0.10414167`, and `0.0.10415845` was
+not created until `1788838675.869780648`, three hours later. The sentence had been written when
+`0.0.10414167` was the current deployment and carried across the redeploy in `7400cd7` without
+being re-checked against the chain. Likewise the schedule `0.0.10414197` that `cancel()` deleted
+belongs to `0.0.10414167`, and the agent-script transcript at the end of this file ran against
+`0.0.10414167`, not the current contract. Every surface that repeated those sentences (README,
+JUDGE.md, `/judge`, the landing page, the pitch deck) was corrected at the same time. The
+mistake is kept here in words because a judge who clicks the old HashScan link will see
+`0.0.10414167`, and should find the explanation rather than a silent edit.
+
+Two details visible in the data below make the difference between the first deployment and the
+current source concrete:
 
 - The subscribe call carries selector `0xa33087cd`, which matches no function in the current
   source (`subscribe()` is `0x8f449a05`, `subscribeFor(address)` is `0x6da6c39c`).
 - The run used a **60-second period**. The current source sets `MIN_PERIOD_SECONDS = 61`, a
   bound added after this run so the anyone-callable `renew()` window stays a strict minority
-  of every period.
+  of every period; the current deployment runs 90-second periods.
 
 Neither affects what the run demonstrates: the Schedule Service really does call back into a
 contract, on time, unattended, and re-arm itself — and what that costs.
+
+---
+
+## The current deployment — the same loop on the deployed source, and one revert
+
+Everything in this section is `0.0.10415845`, read back from the mirror node on 2026-09-08. The
+agent is the same `0.0.10403066` / `0xd14c…cc66`; the seller is `0.0.10402910`.
+
+| Consensus | UTC | What | Result | Charged to the contract |
+|---|---|---|---|---|
+| `1788840233.455239257` | 04:03:53 | x402 payment settled by Blocky402: `0.0.7162784@1788840225.936068496`, 3 ℏ agent → seller, fee paid by `0.0.7162784` | `SUCCESS` | — |
+| `1788840235.495889027` | 04:03:55 | `subscribeFor(agent)` forwarded by the server, value 3 ℏ, 1,613,677 gas → `SubscriptionStarted` (period 90 s), `RenewalScheduled` `0.0.10416088` | `SUCCESS` | — |
+| `1788840242.157589795` | 04:04:02 | `meter(agent)` — one metered call served, counted on chain | `SUCCESS` | — |
+| [`1788840325.135282208`](https://hashscan.io/testnet/transaction/1788840325.135282208) | 04:05:25 | **scheduled** `renew(agent)` → `Renewed`, `RenewalScheduled` `0.0.10416101` | `scheduled=true` `SUCCESS` | 154,327,368 tinybar |
+| [`1788840415.078121802`](https://hashscan.io/testnet/transaction/1788840415.078121802) | 04:06:55 | **scheduled** `renew(agent)` from schedule `0.0.10416101` | `scheduled=true` **`CONTRACT_REVERT_EXECUTED`**, error `0xfc220038` = `Insolvent()` | 6,540,872 tinybar |
+| `1788841036.913994605` | 04:17:16 | `subscribe()` sent by the agent | `CONTRACT_REVERT_EXECUTED`, `AlreadyActive()` — the rolled-back state still says active | — |
+| `1788844232.261452104` | 05:10:32 | `creditFor(agent)` +8 ℏ by the seller → `Funded` | `SUCCESS` | — |
+| `1788844245.406393732` | 05:10:45 | `renew(agent)` sent as an ordinary transaction by the seller, 1,481,020 gas → `Renewed`, `RenewalScheduled` `0.0.10416711` — the restart | `SUCCESS` | (paid by the sender) |
+| [`1788844334.069565823`](https://hashscan.io/testnet/transaction/1788844334.069565823) | 05:12:14 | **scheduled** `renew` → `Renewed`, re-armed `0.0.10416728` | `scheduled=true` `SUCCESS` | 154,036,168 |
+| `1788844424.147499693` | 05:13:44 | scheduled `renew` → `Renewed`, re-armed `0.0.10416743` | `scheduled=true` `SUCCESS` | 154,036,168 |
+| `1788844514.031171208` | 05:15:14 | scheduled `renew` → `Renewed`, re-armed `0.0.10416751` | `scheduled=true` `SUCCESS` | 154,036,168 |
+| `1788844604.062103189` | 05:16:44 | scheduled `renew` → `Renewed`, re-armed `0.0.10416761` | `scheduled=true` `SUCCESS` | 154,036,168 |
+| `1788844694.152962208` | 05:18:14 | scheduled `renew` → `Renewed`, re-armed `0.0.10416782` | `scheduled=true` `SUCCESS` | 154,036,168 |
+| `1788844784.021991773` | 05:19:44 | scheduled `renew` → `Renewed`, re-armed `0.0.10416798` | `scheduled=true` `SUCCESS` | 154,036,168 |
+| `1788844874.087845672` | 05:21:14 | scheduled `renew` → `Renewed`, re-armed `0.0.10416816` | `scheduled=true` `SUCCESS` | 153,536,968 |
+| [`1788844964.085627208`](https://hashscan.io/testnet/transaction/1788844964.085627208) | 05:22:44 | scheduled `renew` → `Renewed` (balance 0), `Lapsed("balance will not cover the next period")`, **no** `RenewalScheduled` | `scheduled=true` `SUCCESS` | **5,222,880** |
+
+**What it proves.** The deployed source does what the first deployment did, at the current gas
+price: a re-arming renewal is charged ~154,036,168 tinybar (1.54036 ℏ) and the one that lapses
+5,222,880 (0.0522 ℏ) — a **29.5×** gap, so re-arming is again **~96.6%** of the cost. Eight
+consecutive executions with no submitter, ending loudly. The demo agent's window has been
+closed since `1788845054` (05:24:14 UTC), which is what `/api/retainer/status` reports today.
+
+**What it also proves, and this is the part to read twice.** The scheduled execution at
+`1788840415.078121802` **reverted** with the contract's own `Insolvent()` guard —
+`address(this).balance < _owed + revenue + gasReserve`. Reconstructed from the transfers the
+mirror node lists against the contract, its real balance at that second was
+20 ℏ + 3 ℏ − 154,327,368 − 6,540,872 = **2,139,131,760 tinybar**, and by the source's own
+arithmetic the three pots at the end of that call totalled 0 + 300,000,000 + 1,600,000,000 =
+**1,900,000,000**. The guard should have passed by 239 million tinybar. It did not, so the balance
+the EVM exposed to the contract *during a network-scheduled execution* was lower than the
+account's balance — consistent with Hedera reserving the scheduled call's full gas cost
+(`RENEWAL_GAS_LIMIT` 2,500,000 at the network's provisional price, which is more than the
+~154 million finally charged) on the payer before the call runs. That is an inference from two
+numbers, not a measured mechanism; what is measured is that `Insolvent()` fired with 239 million
+tinybar of apparent headroom, and that every later execution — which had 439 million or more —
+passed. The consequence was the failure mode the docs warn about elsewhere: for 64 minutes the
+subscription read `active: true` with an `expiresAt` in the past and a stale schedule pointer,
+until a human noticed. The fix is to keep the scheduled call's own gas out of the solvency
+arithmetic or to hold `RENEWAL_COST_ESTIMATE` outside the pots; either needs a redeploy and
+neither is made in this build. Recorded here because a judge can find it in one query, and
+because it is the most useful thing the current deployment taught.
+
+**Re-verify the current deployment:**
+
+```bash
+# every scheduled execution and the ordinary renew() that armed the first — one request
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7314364-1788844238-651641588" \
+  | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\(.scheduled)", .result, "fee=\(.charged_tx_fee)"] | @tsv'
+
+# the earlier renewal that succeeded, and the one that reverted
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions?timestamp=1788840325.135282208" | jq '.transactions[0] | {name, scheduled, result, charged_tx_fee, entity_id}'
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/contracts/0.0.10415845/results/1788840415.078121802" | jq '{result, error_message, gas_used, gas_limit}'
+#   error_message 0xfc220038 == keccak256("Insolvent()")[0:4]
+
+# every event the current contract emitted, in order (topic0 table further down)
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/contracts/0.0.10415845/results/logs?order=asc&limit=100" \
+  | jq -r '.logs[] | [.timestamp, .topics[0][0:10]] | @tsv'
+
+# the x402 settlement that opened it
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1788840225-936068496" \
+  | jq -r '.transactions[] | .name, (.transfers[] | "\(.account) \(.amount)")'
+```
+
+**Count the 19 yourself** — one line per deployment, each counting `Renewed` events emitted by a
+`scheduled=true` `SUCCESS` execution:
+
+```bash
+for c in 0.0.10406083 0.0.10414167 0.0.10415845; do
+  curl -s "https://testnet.mirrornode.hedera.com/api/v1/contracts/$c/results/logs?order=asc&limit=100" \
+    | jq -r --arg c "$c" '[.logs[] | select(.topics[0] | startswith("0x97d5a615"))] | .[].timestamp' \
+    | while read ts; do curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions?timestamp=$ts" \
+        | jq -r --arg c "$c" '.transactions[0] | select(.scheduled==true and .result=="SUCCESS") | $c'; done | sort | uniq -c
+done
+# 3 0.0.10406083 · 7 0.0.10414167 · 9 0.0.10415845
+```
 
 ---
 
@@ -295,11 +390,12 @@ curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1
 
 ## What this does not prove
 
-- It does not prove the **current** source behaves this way to exhaustion on testnet. This run
-  is one revision behind the source; the current deployment named at the top has completed one
-  unattended renewal and a cancel, not a full lapse cycle. The current source is covered by
-  46 tests in `packages/hardhat/test/RetainerAccess.test.ts` (`yarn hardhat:test`), against
-  the mock.
+- It does not, by itself, prove the **current** source behaves this way; that is what "The
+  current deployment" above is for — eight unattended renewals to a loud lapse on
+  `0.0.10415845`, and one scheduled execution that reverted, which this run never showed. The
+  current source is covered by 46 tests in `packages/hardhat/test/RetainerAccess.test.ts`
+  (`yarn hardhat:test`), against the mock; none of them models the balance a scheduled
+  execution sees.
 - It does not prove the fee stays at 1.54896 HBAR. Hedera gas price moves; the measurement is
   a point in time, which is why `RENEWAL_COST_ESTIMATE` is a documented estimate with headroom
   rather than a promise.
@@ -312,9 +408,14 @@ curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1
 
 ## The live service, end to end
 
-The deployed resource server at <https://retainer.edycu.dev> running against the current
-contract `0.0.10415845`. This is `packages/nextjs/scripts/retainer-agent.ts` in full, unedited —
-the agent signs exactly one thing, the payment in step 2, and nothing afterwards.
+The deployed resource server at <https://retainer.edycu.dev>, recorded on 2026-09-08 at
+01:14 UTC against the deployment that was current at that moment, **`0.0.10414167`** (the
+`subscribeFor` in step 3, `0x97b7…b3cc`, is `1788830074.772208503` on that contract; the
+redeploy to `0.0.10415845` came two and a half hours later). This is
+`packages/nextjs/scripts/retainer-agent.ts` in full, unedited — the agent signs exactly one
+thing, the payment in step 2, and nothing afterwards. The same route against the current
+deployment produced the x402 settlement and `subscribeFor` at the top of "The current
+deployment" above.
 
 ```
 1) cold request — expect 402

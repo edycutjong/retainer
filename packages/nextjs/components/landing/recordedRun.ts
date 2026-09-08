@@ -23,10 +23,11 @@ export const RECORDED_CONTRACT = {
   date: "2026-09-07",
 } as const;
 
-/** The deployment the resource server talks to today. */
+/** The deployment the resource server talks to today (created 2026-09-08 03:37:55 UTC). */
 export const CURRENT_CONTRACT = {
   id: "0.0.10415845",
   evm: "0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931",
+  periodSeconds: 90,
 } as const;
 
 export type RecordedEvent = {
@@ -104,19 +105,115 @@ export const RECORDED_RUN: readonly RecordedEvent[] = [
   },
 ];
 
-/** The one unattended renewal the current deployment has executed so far. */
-export const CURRENT_RENEWAL = {
-  consensus: "1788827767.015718559",
-  utc: "2026-09-08 00:36:07",
-  type: "CONTRACTCALL",
-  scheduled: true,
-  feeLabel: "1.53816728 ℏ",
-  note: "one unattended renewal on the deployed source; cancel() then deleted schedule 0.0.10414197",
-  href: `${HASHSCAN}/transaction/1788827767.015718559`,
+/**
+ * The current deployment's own run, read back from the mirror node on 2026-09-08. After a
+ * 3 ℏ x402 payment (`0.0.7162784@1788840225.936068496`, settled by Blocky402) opened the
+ * subscription and the network renewed it once (`1788840325.135282208`), the next scheduled
+ * execution REVERTED with the contract's own `Insolvent()` guard (`1788840415.078121802`,
+ * disclosed in the limitations). The seller re-funded the agent with `creditFor` and re-armed
+ * it with one ordinary `renew()` call; from there the network executed eight renewals by itself
+ * — seven that re-armed the next, and one that charged the last period and lapsed. Every row
+ * below is one of those eight. Whole chain, one request:
+ *
+ *   curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7314364-1788844238-651641588" \
+ *     | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\(.scheduled)", .result, "fee=\(.charged_tx_fee)"] | @tsv'
+ */
+export const CURRENT_CHAIN_TX = "0.0.7314364-1788844238-651641588";
+
+export type CurrentRow = {
+  consensus: string;
+  utc: string;
+  feeLabel: string;
+  kind: "renewed" | "lapsed";
+  note: string;
+  href: string;
+};
+
+const CURRENT_ROWS: Omit<CurrentRow, "href">[] = [
+  {
+    consensus: "1788844334.069565823",
+    utc: "05:12:14",
+    feeLabel: "1.54036168 ℏ",
+    kind: "renewed",
+    note: "Renewed · re-armed 0.0.10416728",
+  },
+  {
+    consensus: "1788844424.147499693",
+    utc: "05:13:44",
+    feeLabel: "1.54036168 ℏ",
+    kind: "renewed",
+    note: "Renewed · re-armed 0.0.10416743",
+  },
+  {
+    consensus: "1788844514.031171208",
+    utc: "05:15:14",
+    feeLabel: "1.54036168 ℏ",
+    kind: "renewed",
+    note: "Renewed · re-armed 0.0.10416751",
+  },
+  {
+    consensus: "1788844604.062103189",
+    utc: "05:16:44",
+    feeLabel: "1.54036168 ℏ",
+    kind: "renewed",
+    note: "Renewed · re-armed 0.0.10416761",
+  },
+  {
+    consensus: "1788844694.152962208",
+    utc: "05:18:14",
+    feeLabel: "1.54036168 ℏ",
+    kind: "renewed",
+    note: "Renewed · re-armed 0.0.10416782",
+  },
+  {
+    consensus: "1788844784.021991773",
+    utc: "05:19:44",
+    feeLabel: "1.54036168 ℏ",
+    kind: "renewed",
+    note: "Renewed · re-armed 0.0.10416798",
+  },
+  {
+    consensus: "1788844874.087845672",
+    utc: "05:21:14",
+    feeLabel: "1.53536968 ℏ",
+    kind: "renewed",
+    note: "Renewed · re-armed 0.0.10416816",
+  },
+  {
+    consensus: "1788844964.085627208",
+    utc: "05:22:44",
+    feeLabel: "0.0522288 ℏ",
+    kind: "lapsed",
+    note: 'Renewed · balance 0 · Lapsed("balance will not cover the next period") · no schedule',
+  },
+];
+
+export const CURRENT_RUN: readonly CurrentRow[] = CURRENT_ROWS.map(r => ({
+  ...r,
+  href: `${HASHSCAN}/transaction/${r.consensus}`,
+}));
+
+/** The current deployment's headline renewal — the first of the eight above. */
+export const CURRENT_RENEWAL = CURRENT_RUN[0];
+
+/** The scheduled execution on the current deployment that reverted (see limitations). */
+export const CURRENT_REVERT = {
+  consensus: "1788840415.078121802",
+  error: "Insolvent()",
+  feeLabel: "0.0654 ℏ",
+  href: `${HASHSCAN}/transaction/1788840415.078121802`,
 } as const;
 
-/** The x402 settlement from the live end-to-end run (JUDGE.md receipt block). */
-export const LIVE_SETTLEMENT = "0.0.7162784@1788830067.404863715";
+/**
+ * Unattended renewals across every deployment, counted on the mirror node on 2026-09-08:
+ * `CONTRACTCALL`, `scheduled=true`, `SUCCESS`, each with a `Renewed` event. 3 on 0.0.10406083,
+ * 7 on 0.0.10414167, 9 on 0.0.10415845. One further scheduled execution (the revert above) is
+ * not counted.
+ */
+export const UNATTENDED_RENEWALS = { total: 19, deployments: 3, byContract: [3, 7, 9] } as const;
+
+/** The x402 settlement (Blocky402) that opened the current deployment's subscription: 3 ℏ, agent → seller. */
+export const LIVE_SETTLEMENT = "0.0.7162784@1788840225.936068496";
 
 /** Replay clock: 60 real seconds are shown in 6. Said on the instrument as "10× time". */
 export const REPLAY_SPEED = 10;

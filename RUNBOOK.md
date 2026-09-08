@@ -194,19 +194,22 @@ Optionally verify the source:
 yarn hardhat:verify:testnet
 ```
 
-### The two deployments already on testnet
+### The three deployments already on testnet
 
 ```
-current   0.0.10415845  /  0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931
-          https://hashscan.io/testnet/contract/0.0.10415845
-measured  0.0.10406083  /  0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A
-          https://hashscan.io/testnet/contract/0.0.10406083
+current       0.0.10415845  /  0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931
+              https://hashscan.io/testnet/contract/0.0.10415845
+intermediate  0.0.10414167  /  0xd3A218AD4c817B14Cc754e4c996A95435155a27B
+measured      0.0.10406083  /  0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A
+              https://hashscan.io/testnet/contract/0.0.10406083
 ```
 
 `0.0.10415845` runs the current source and is the address recorded in
-`packages/nextjs/contracts/deployedContracts.ts`. One renewal has executed on it unattended
-(`CONTRACTCALL`, `scheduled=true`, `SUCCESS` at `1788827767.015718559`), and `cancel()` deleted
-its pending schedule `0.0.10414197` and reclaimed the reserved gas.
+`packages/nextjs/contracts/deployedContracts.ts`. On 2026-09-08 the network executed nine
+renewals on it unattended (eight in one unbroken chain from `1788844334.069565823` to a
+`Lapsed` at `1788844964.085627208`), and one scheduled execution reverted with `Insolvent()` —
+`docs/proof.md`, "The current deployment", has the whole sequence. `0.0.10414167` is the
+revision before metering; the `cancel()` that deleted schedule `0.0.10414197` happened there.
 
 `0.0.10406083` is the deployment that produced the measured proof in §8. It **predates the
 later contract fixes and runs an older constructor and ABI**, so do not point the current code

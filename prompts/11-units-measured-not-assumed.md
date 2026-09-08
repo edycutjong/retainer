@@ -46,9 +46,14 @@ everything is already **tinybar**. A contract on Hedera should do no conversion 
   so a payable constructor never sees it. That is the 8-HBAR symptom above, explained
 - tests 38 → 40
 
-Proven end to end on testnet against contract `0.0.10415845`: the network renewed a
-subscription with no transaction from us, and `cancel()` refunded exactly 1 HBAR where the
-pre-fix code would have paid `1e-10` of it.
+Proven end to end on testnet against the contract this commit deployed, `0.0.10414167`: the
+network renewed a subscription with no transaction from us (`1788827767.015718559`), and
+`cancel()` refunded exactly 1 HBAR where the pre-fix code would have paid `1e-10` of it.
+
+> **Correction, 2026-09-08.** This paragraph originally named `0.0.10415845`. That contract was
+> deployed later, by step 12's predecessor commit `7400cd7` (metering); the renewal cited here is
+> on `0.0.10414167`, the deployment this step produced. The number was right, the label was not.
+> `docs/proof.md`, "Read this first", carries the same correction for every surface.
 
 ## Why this one is in the record rather than tidied away
 

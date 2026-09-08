@@ -25,22 +25,30 @@ You get **`402 Payment Required`** with a real x402 challenge — `scheme: exact
 `network: hedera:testnet`, native HBAR — in the body *and* verbatim in the `PAYMENT-REQUIRED`
 header, so an ordinary x402 client can parse it. That is the gate refusing service.
 
-**2 — read an agent that already paid.** This one has a live subscription:
+**2 — read an agent that has paid before.**
 
 ```bash
 curl -s "https://retainer.edycu.dev/api/retainer/status?agent=0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66"
 ```
 
-No 402. The window, the metered allowance, and the address of the *pending scheduled renewal*
-come straight off the chain. Nothing here is served from a database.
+No 402. Whatever the chain says about this agent right now — window open, or lapsed with
+`balanceTinybar: "0"` after its last run ended — the balance, the metered allowance and the
+address of any *pending scheduled renewal* come straight off the contract. Nothing here is
+served from a database, and nothing is made to look alive.
 
 **3 — check that on Hedera yourself, not on our word.** The contract the server just read:
 
 - [`0.0.10415845` on HashScan](https://hashscan.io/testnet/contract/0.0.10415845) —
   `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931`
 - One renewal the **network executed on its own**, `CONTRACTCALL`, `scheduled=true`, `SUCCESS`:
-  [`1788827767.015718559`](https://hashscan.io/testnet/transaction/1788827767.015718559).
-  No transaction was sent to trigger it.
+  [`1788844334.069565823`](https://hashscan.io/testnet/transaction/1788844334.069565823).
+  No transaction was sent to trigger it. It is the first of eight in a row; all eight, and the
+  one ordinary call that armed the first, come back from a single mirror-node request:
+
+  ```bash
+  curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7314364-1788844238-651641588" \
+    | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\(.scheduled)", .result, "fee=\(.charged_tx_fee)"] | @tsv'
+  ```
 
 **4 — open the live view.** <https://retainer.edycu.dev> — paste an agent address and
 watch the window count down and then jump back up on its own. Every number on it is a chain
@@ -58,11 +66,11 @@ Hedera mirror node — the exact `curl` commands are in [`docs/proof.md`](docs/p
 
 | | |
 |---|---|
-| **x402 payment settled through Blocky402** | `0.0.7162784@1788830067.404863715` |
-| **Unattended renewals executed by the network** | 4 across two deployments, all `scheduled=true` `SUCCESS` |
-| **Cost of one self-re-arming renewal** | **1.54896 HBAR** (154,896,000 tinybar) |
-| **Cost of a renewal that does *not* re-arm** | **0.0507 HBAR** (5,067,825 tinybar) |
-| **→ what that ~30× gap proves** | re-arming — the `scheduleCall` into `0x16b` — is **~97%** of what a renewal costs |
+| **x402 payment settled through Blocky402** | `0.0.7162784@1788840225.936068496` — 3 HBAR, agent → seller, fee paid by the facilitator; it opened the current deployment's subscription |
+| **Unattended renewals executed by the network** | **19** across three deployments (3 · 7 · 9), every one `CONTRACTCALL` `scheduled=true` `SUCCESS` with a `Renewed` event. One further scheduled execution reverted — limitation 3 |
+| **Cost of one self-re-arming renewal** | **1.54896 HBAR** (154,896,000 tinybar) on the first deployment; **1.54036 HBAR** (154,036,168) on the current one |
+| **Cost of a renewal that does *not* re-arm** | **0.0507 HBAR** (5,067,825 tinybar) on the first deployment; **0.0522 HBAR** (5,222,880) on the current one |
+| **→ what that ~30× gap proves** | re-arming — the `scheduleCall` into `0x16b` — is **~97%** of what a renewal costs, on both deployments |
 | **Gas used, `subscribe()` on testnet** | 1,582,554 (limit 2,000,000) |
 | **Gas used, deploy** | 968,564 |
 | **Contract tests** | **46 passing** — `yarn hardhat:test` |
@@ -121,11 +129,19 @@ Three real ones. None of them is fixed here.
    put Hedera finality inside a serverless request and timed it out. So a burst of requests
    arriving within the same few seconds can overshoot the allowance by roughly the number in
    flight. Bounded and small, and disclosed rather than discovered.
-3. **The full lapse cycle was measured on the previous deployment.** `0.0.10406083` is the
-   contract that ran to exhaustion and produced every cost number above; the current
-   `0.0.10415845` has completed one unattended renewal and a cancel, not a full lapse. The two
-   are one revision apart and `docs/proof.md` says exactly where they differ, including a
-   selector that will not match if you go looking.
+3. **One scheduled renewal on the deployed source reverted.** At
+   [`1788840415.078121802`](https://hashscan.io/testnet/transaction/1788840415.078121802) the
+   network fired `renew()` on `0.0.10415845` and the call came back `CONTRACT_REVERT_EXECUTED`
+   with the contract's own `Insolvent()` guard — the check that the three money pots never exceed
+   `address(this).balance`. The account's real balance at that second, reconstructed from the
+   mirror node, was 2,139,131,760 tinybar against pots totalling 1,900,000,000, so the balance the
+   EVM exposed *during* the scheduled execution was lower than the account's — consistent with
+   Hedera reserving the call's full gas cost on the payer before it runs. The subscription was
+   restarted by hand (`creditFor`, then one ordinary `renew()`) and the network then executed
+   eight renewals unattended to a loud lapse. The guard is right to exist and wrong to count that
+   reservation; the fix needs a redeploy and is not made here. Three deployments exist —
+   `0.0.10406083`, `0.0.10414167`, `0.0.10415845` — and [`docs/proof.md`](docs/proof.md) keeps
+   them apart.
 
 Also true: not audited, testnet only, and `RENEWAL_COST_ESTIMATE` is an explicit estimate — a
 contract cannot know a future network fee.

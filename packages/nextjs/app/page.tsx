@@ -5,11 +5,14 @@ import Link from "next/link";
 import type { NextPage } from "next";
 import { Instrument } from "~~/components/landing/Instrument";
 import {
+  CURRENT_CHAIN_TX,
   CURRENT_CONTRACT,
-  CURRENT_RENEWAL,
+  CURRENT_REVERT,
+  CURRENT_RUN,
   HASHSCAN,
   RECORDED_CONTRACT,
   RECORDED_RUN,
+  UNATTENDED_RENEWALS,
 } from "~~/components/landing/recordedRun";
 import { DEMO_AGENT, ZERO, hbar, useLiveWindow } from "~~/components/landing/useLiveWindow";
 import { useReveal } from "~~/components/landing/useReveal";
@@ -97,14 +100,14 @@ const Home: NextPage = () => {
       <section className="rt-container pb-4" aria-label="Measured results">
         <div className="rt-stats">
           <Stat
-            value={<>1 → 4</>}
-            label="one signature, four unattended renewals"
-            source="JUDGE.md · two deployments"
+            value={<>{UNATTENDED_RENEWALS.total}</>}
+            label="renewals the network executed by itself — three deployments, every one scheduled=true · SUCCESS"
+            source={`mirror node · ${UNATTENDED_RENEWALS.byContract.join(" + ")} · 2026-09-08`}
           />
           <Stat
             value={<>~30×</>}
             label="1.54896 ℏ to renew and re-arm, 0.0507 ℏ to renew without — re-arming is ~97% of the cost"
-            source="docs/proof.md · artifacts 4–6"
+            source="docs/proof.md · first run; current deployment repeats it at 1.5404 / 0.0522 ℏ"
           />
           <Stat
             value={<span className="rt-renewed-text rt-stat__v--code">scheduled=true</span>}
@@ -252,46 +255,132 @@ const Home: NextPage = () => {
                       <td>{r.note}</td>
                     </tr>
                   ))}
-                  <tr className="is-renewed is-current">
+                </tbody>
+              </table>
+            </div>
+
+            <div className="rt-ledger-wrap mt-6">
+              <table className="rt-ledger">
+                <caption>
+                  The current deployment, <span className="rt-mono">{CURRENT_CONTRACT.id}</span> — the same loop on the
+                  deployed source, {CURRENT_CONTRACT.periodSeconds}s periods, read back 2026-09-08. One scheduled
+                  execution reverted; the run that followed is eight renewals by the network, the last one lapsing.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Consensus</th>
+                    <th scope="col">UTC</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">scheduled</th>
+                    <th scope="col">Charged</th>
+                    <th scope="col">What the contract said</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="is-renewed">
                     <td>
-                      <a className="rt-link rt-mono" href={CURRENT_RENEWAL.href} target="_blank" rel="noreferrer">
-                        {CURRENT_RENEWAL.consensus}
+                      <a
+                        className="rt-link rt-mono"
+                        href={`${HASHSCAN}/transaction/1788840325.135282208`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        1788840325.135282208
                       </a>
                     </td>
-                    <td className="rt-mono">{CURRENT_RENEWAL.utc}</td>
-                    <td className="rt-mono">{CURRENT_RENEWAL.type}</td>
+                    <td className="rt-mono">04:05:25</td>
+                    <td className="rt-mono">CONTRACTCALL</td>
                     <td>
                       <span className="rt-tag rt-tag--renewed">true</span>
                     </td>
-                    <td className="rt-mono">{CURRENT_RENEWAL.feeLabel}</td>
+                    <td className="rt-mono">1.54327368 ℏ</td>
+                    <td>Renewed · after a 3 ℏ x402 payment opened the window · re-armed 0.0.10416101</td>
+                  </tr>
+                  <tr className="is-reverted">
                     <td>
-                      <span className="rt-tag">current · {CURRENT_CONTRACT.id}</span> {CURRENT_RENEWAL.note}
+                      <a className="rt-link rt-mono" href={CURRENT_REVERT.href} target="_blank" rel="noreferrer">
+                        {CURRENT_REVERT.consensus}
+                      </a>
+                    </td>
+                    <td className="rt-mono">04:06:55</td>
+                    <td className="rt-mono">CONTRACTCALL</td>
+                    <td>
+                      <span className="rt-tag rt-tag--renewed">true</span>
+                    </td>
+                    <td className="rt-mono">{CURRENT_REVERT.feeLabel}</td>
+                    <td>
+                      <span className="rt-tag rt-tag--lapsed">CONTRACT_REVERT_EXECUTED</span> {CURRENT_REVERT.error} —
+                      the contract&rsquo;s own solvency guard rejected the network&rsquo;s call. Limitation 03.
                     </td>
                   </tr>
+                  <tr>
+                    <td>
+                      <a
+                        className="rt-link rt-mono"
+                        href={`${HASHSCAN}/transaction/1788844245.406393732`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        1788844245.406393732
+                      </a>
+                    </td>
+                    <td className="rt-mono">05:10:45</td>
+                    <td className="rt-mono">ETHEREUMTRANSACTION</td>
+                    <td>
+                      <span className="rt-tag">false</span>
+                    </td>
+                    <td className="rt-mono">1,481,020 gas</td>
+                    <td>
+                      renew() sent by the seller after creditFor(+8 ℏ) — the restart · RenewalScheduled 0.0.10416711
+                    </td>
+                  </tr>
+                  {CURRENT_RUN.map(r => (
+                    <tr key={r.consensus} className={r.kind === "renewed" ? "is-renewed" : "is-lapsed"}>
+                      <td>
+                        <a className="rt-link rt-mono" href={r.href} target="_blank" rel="noreferrer">
+                          {r.consensus}
+                        </a>
+                      </td>
+                      <td className="rt-mono">{r.utc}</td>
+                      <td className="rt-mono">CONTRACTCALL</td>
+                      <td>
+                        <span className="rt-tag rt-tag--renewed">true</span>
+                      </td>
+                      <td className="rt-mono">{r.feeLabel}</td>
+                      <td>{r.note}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
             <div className="mt-6 grid gap-6 lg:grid-cols-12">
-              <div className="lg:col-span-7 min-w-0">
+              <div className="lg:col-span-7 min-w-0 flex flex-col gap-5">
                 <CopyPre
-                  title="The whole chain in one request"
+                  title="The recorded run, whole chain, one request"
                   text={`curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7314364-1788780163-271854529" \\
+  | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\\(.scheduled)", .result, "fee=\\(.charged_tx_fee)"] | @tsv'`}
+                />
+                <CopyPre
+                  title="The current deployment's eight renewals, one request"
+                  text={`curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/${CURRENT_CHAIN_TX}" \\
   | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\\(.scheduled)", .result, "fee=\\(.charged_tx_fee)"] | @tsv'`}
                 />
               </div>
               <div className="lg:col-span-5 min-w-0 rt-small" style={{ color: "var(--rt-text-mid)" }}>
                 <p>
-                  The scheduled calls inherit the transaction id of the EVM call that armed the first schedule, so that
-                  one response holds the subscribe call, all three renewals and every{" "}
+                  The scheduled calls inherit the transaction id of the EVM call that armed the first schedule, so one
+                  response holds that call, every renewal it led to and every{" "}
                   <code className="rt-code">SCHEDULECREATE</code> between them.
                 </p>
                 <p className="mt-3">
-                  The measured deployment is one revision behind the deployed source;{" "}
+                  Three deployments exist — the recorded run&rsquo;s <span className="rt-mono">0.0.10406083</span>, an
+                  intermediate <span className="rt-mono">0.0.10414167</span>, and the current one — and they are not the
+                  same code.{" "}
                   <a className="rt-link" href={`${REPO}/blob/main/docs/proof.md`} target="_blank" rel="noreferrer">
                     docs/proof.md
                   </a>{" "}
-                  says exactly where they differ, including a selector that will not match if you go looking.
+                  keeps them apart and says exactly where they differ.
                 </p>
                 <p className="mt-3">
                   Contract on HashScan:{" "}
@@ -354,8 +443,8 @@ const Home: NextPage = () => {
               <div>
                 The renewal charges the last period, emits{" "}
                 <code className="rt-code">Lapsed(&quot;balance will not cover the next period&quot;)</code> and does not
-                re-arm. The third row of the ledger above is that event: 0.0507 ℏ, no{" "}
-                <code className="rt-code">SCHEDULECREATE</code> after it. Loud, not silent.
+                re-arm. The last row of each ledger above is that event — 0.0507 ℏ on the recorded run, 0.0522 ℏ on the
+                current deployment — with no <code className="rt-code">SCHEDULECREATE</code> after it. Loud, not silent.
               </div>
             </details>
             <details>
@@ -406,11 +495,15 @@ const Home: NextPage = () => {
               <p className="rt-mono-ui" style={{ color: "var(--rt-expiring-ink)" }}>
                 03
               </p>
-              <h3 className="rt-h3 mt-2">The full lapse was measured on the previous deployment.</h3>
+              <h3 className="rt-h3 mt-2">One scheduled renewal reverted on the deployed source.</h3>
               <p className="rt-small mt-2" style={{ color: "var(--rt-text-mid)" }}>
-                <span className="rt-mono">0.0.10406083</span> ran to exhaustion; the current{" "}
-                <span className="rt-mono">{CURRENT_CONTRACT.id}</span> has one unattended renewal and a cancel, not a
-                full lapse.
+                At{" "}
+                <a className="rt-link rt-mono" href={CURRENT_REVERT.href} target="_blank" rel="noreferrer">
+                  04:06:55
+                </a>{" "}
+                the network fired <code className="rt-code">renew()</code> and the contract&rsquo;s own{" "}
+                <code className="rt-code">Insolvent()</code> guard rejected it; the run had to be restarted by hand. The
+                numbers point at the gas Hedera reserves on the payer during a scheduled call. Not fixed here.
               </p>
             </li>
           </ol>
@@ -485,22 +578,29 @@ const LivePanels = ({ live }: { live: ReturnType<typeof useLiveWindow> }) => {
           <div className="flex items-baseline justify-between flex-wrap gap-2">
             <h3 className="rt-h3">Calls this period</h3>
             <span className="rt-mono-ui" style={{ color: "var(--rt-text-mid)" }}>
-              {s.usage.remaining} of {s.usage.allowance} left
+              {s.usage ? `${s.usage.remaining} of ${s.usage.allowance} left` : "unread this poll"}
             </span>
           </div>
-          <div
-            className="rt-meter"
-            role="meter"
-            aria-valuemin={0}
-            aria-valuemax={s.usage.allowance}
-            aria-valuenow={s.usage.remaining}
-            aria-valuetext={`${s.usage.remaining} of ${s.usage.allowance} calls left this period`}
-            aria-label="Metered calls remaining this period"
-          >
-            {Array.from({ length: s.usage.allowance }, (_, i) => (
-              <span key={i} className={`rt-meter__seg${i < s.usage.remaining ? " is-left" : ""}`} />
-            ))}
-          </div>
+          {s.usage ? (
+            <div
+              className="rt-meter"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={s.usage.allowance}
+              aria-valuenow={s.usage.remaining}
+              aria-valuetext={`${s.usage.remaining} of ${s.usage.allowance} calls left this period`}
+              aria-label="Metered calls remaining this period"
+            >
+              {Array.from({ length: s.usage.allowance }, (_, i) => (
+                <span key={i} className={`rt-meter__seg${i < s.usage!.remaining ? " is-left" : ""}`} />
+              ))}
+            </div>
+          ) : (
+            <p className="rt-small mt-3" style={{ color: "var(--rt-text-low)" }}>
+              The relay did not answer <code className="rt-code">usageOf()</code> on this poll. The window above is
+              unaffected; the meter shows again on the next read rather than a guessed value.
+            </p>
+          )}
           <p className="rt-small mt-3" style={{ color: "var(--rt-text-mid)" }}>
             The period buys a countable quantity, not an unlimited licence — every served call is counted on-chain. The
             renewal that extends the window also refills this.
@@ -524,7 +624,15 @@ const LivePanels = ({ live }: { live: ReturnType<typeof useLiveWindow> }) => {
             </div>
             <div>
               <dt>reserve can arm</dt>
-              <dd>{s.renewalsReserveCanArm}</dd>
+              <dd>
+                {s.renewalsReserveCanArm === null ? (
+                  <span className="rt-tag" title="renewalsRemaining() was not answered on this poll">
+                    unknown
+                  </span>
+                ) : (
+                  s.renewalsReserveCanArm
+                )}
+              </dd>
             </div>
             <div>
               <dt>period</dt>

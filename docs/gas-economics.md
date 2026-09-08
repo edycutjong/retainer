@@ -52,10 +52,22 @@ Supporting figures from the same run:
 These came off the first deployment, `0.0.10406083` /
 [`0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A`](https://hashscan.io/testnet/contract/0.0.10406083),
 which predates the current constructor and ABI. The current source is deployed separately at
-[`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845), where one scheduled renewal
-was charged 153,816,728 tinybar (1.53817 HBAR) — within 0.7% of the figures in the table above. The fee
-behaviour and the `RENEWAL_GAS_LIMIT` the measurements rest on are unchanged, but do not expect
-`0.0.10406083` to match `RetainerAccess.sol` as it stands today.
+[`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845), where the same loop ran
+eight times unattended on 2026-09-08: seven re-arming renewals charged 154,036,168 tinybar
+(1.54036 HBAR; one 153,536,968) and the lapsing one 5,222,880 (0.0522 HBAR) — a 29.5× gap, so
+re-arming is again ~96.6% of the cost. Within 0.6% of the figures in the table above, at a
+different period length (90 s) and a different hour. The fee behaviour and the
+`RENEWAL_GAS_LIMIT` the measurements rest on are unchanged, but do not expect `0.0.10406083`
+to match `RetainerAccess.sol` as it stands today. (An earlier revision of this paragraph cited a
+153,816,728-tinybar renewal here; that execution belongs to the intermediate deployment
+`0.0.10414167` — see the correction in `docs/proof.md`.)
+
+One more measured number belongs in a note about what scheduled execution costs: on the current
+deployment a scheduled `renew()` **reverted** at `1788840415.078121802` with the contract's own
+`Insolvent()` guard while the account held 239 million tinybar more than its three pots. The
+numbers are consistent with Hedera reserving the scheduled call's full gas cost on the payer
+before the call runs — a reservation `_solvent()` does not know about. `docs/proof.md` works
+through it; the fix needs a redeploy and is not made here.
 
 ### What the 1.549 vs 0.051 split proves
 

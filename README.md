@@ -1,12 +1,14 @@
 <div align="center">
 
-<!-- ASSET TODO: icon not produced yet — add <img src="docs/icon.svg" alt="Retainer Icon" width="144"> here once it exists -->
+<img src="docs/assets/icon.svg" alt="Retainer — access that renews itself" width="144">
 
 <h1>Retainer 🔁</h1>
 
 <p><em>Your agent's access renews itself on-chain at 3am, with nobody awake.</em></p>
 
-<!-- ASSET TODO: hero image not produced yet — add <img src="docs/readme-hero.png" alt="Retainer — your agent's access renews itself on-chain" width="100%"> here once it exists -->
+<p align="center">
+  <img src="docs/assets/readme-hero-animated.svg" alt="Retainer — the access window drains violet to zero and the network's own scheduled call refills it mint, nobody awake." width="100%">
+</p>
 
 <p>An x402-gated resource on Hedera whose access window is an on-chain subscription that the
 Hedera Schedule Service extends by itself.</p>

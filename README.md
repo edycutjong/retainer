@@ -435,9 +435,10 @@ Then:
 yarn next:dev
 ```
 
-- `http://localhost:3000` — the live view: paste an agent address and watch the window count
-  down and then extend itself. Everything on it is read from chain state via
-  `/api/retainer/status`; nothing is simulated.
+- `http://localhost:3000` — the landing page and live view. The instrument at the top replays
+  the recorded testnet run (four real transactions from `docs/proof.md`, labelled as recorded, 10×
+  time) or watches any agent live; paste an address and the window counts down and then extends
+  itself. Every live number is read from chain state via `/api/retainer/status`; nothing is simulated.
 - `http://localhost:3000/api/retainer/access?agent=0x…` — the gate.
 - `http://localhost:3000/api/retainer/status?agent=0x…` — read-only state, safe to poll.
 - `http://localhost:3000/judge` — the judge-facing summary. Static, no auth, no chain call, so
@@ -504,7 +505,7 @@ randomised uint64 amounts. The oracle is the `UnitProbe` measurement from testne
 restatement of the implementation. See [`docs/hedera-units.md`](docs/hedera-units.md).
 
 ```bash
-yarn e2e              # 44 Playwright checks, no credentials required
+yarn e2e              # 56 Playwright checks, no credentials required
 ```
 
 The E2E suite asserts the one thing a paywall must never do. With no seller account
@@ -513,7 +514,9 @@ configured, `/api/retainer/access` is sent a cold agent and the answer **must no
 credentials is a property of the *tests*, not of the product: Retainer has no offline or mock
 mode, and the paid path is proven against the live network in
 [`docs/proof.md`](docs/proof.md). It found two real layout bugs on `/judge` the first time it
-ran, both at 375px, both invisible from a desktop.
+ran, both at 375px, both invisible from a desktop. `e2e/landing.spec.ts` pins what a judge relies
+on at `/`: one claim, the instrument in the first viewport, the recorded run labelled as recorded,
+an explicit switch to the live chain, no autoplay under reduced motion, no sideways scroll on a phone.
 
 ### The harness
 
@@ -521,7 +524,7 @@ ran, both at 375px, both invisible from a desktop.
 |---|---|---|
 | Contract tests | Hardhat + Mocha, 46 passing | `.github/workflows/lint.yaml` |
 | Unit tests | Vitest + fast-check, 10 passing, 202,059 amounts | `.github/workflows/lint.yaml` |
-| E2E | Playwright, 44 checks, desktop + mobile | `.github/workflows/e2e.yaml` |
+| E2E | Playwright, 56 checks, desktop + mobile | `.github/workflows/e2e.yaml` |
 | Types + lint | `tsc --noEmit` and ESLint, both workspaces | `.github/workflows/lint.yaml` |
 | SAST | CodeQL — TypeScript **and** the Actions workflows | `.github/workflows/codeql.yaml` |
 | Secrets | gitleaks over the **full history**, `fetch-depth: 0` | `.github/workflows/gitleaks.yaml` |
@@ -553,7 +556,8 @@ packages/hardhat/
 packages/nextjs/
   app/api/retainer/access/route.ts      the x402 gate: 402, settle, subscribeFor
   app/api/retainer/status/route.ts      read-only chain state, safe to poll
-  app/page.tsx                          the live view
+  app/page.tsx                          the landing page and live view
+  components/landing/                   the instrument: recorded run (from docs/proof.md) + live chain
   services/retainer/server.ts           contract reads + forwarding settled payments
   services/x402/server.ts               x402 resource server, Blocky402 facilitator
   app/judge/page.tsx                    /judge — the 30-second read for one reader

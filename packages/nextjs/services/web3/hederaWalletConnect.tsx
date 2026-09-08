@@ -1,8 +1,8 @@
 "use client";
 
+import type { ComponentType } from "react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
-import type { AppKitApi, AppKitSnapshot } from "./appKitBridge";
+import type { AppKitApi, AppKitBridgeProps, AppKitSnapshot } from "./appKitBridge";
 import type { HederaProvider } from "@hashgraph/hedera-wallet-connect";
 
 /**
@@ -15,8 +15,6 @@ import type { HederaProvider } from "@hashgraph/hedera-wallet-connect";
  *     LCP element did not exist until hydration had finished (measured: LCP 11.2 s on mobile).
  *   - The wallet SDK is fetched at the first sign a visitor wants a wallet, not on every page load.
  */
-
-const AppKitBridge = dynamic(() => import("./appKitBridge"), { ssr: false });
 
 type HederaWalletConnectContextValue = {
   provider: HederaProvider | null;
@@ -45,8 +43,14 @@ const EMPTY_SNAPSHOT: AppKitSnapshot = {
 const HederaWalletConnectContext = createContext<HederaWalletConnectContextValue | undefined>(undefined);
 
 export const HederaWalletConnectProvider = ({ children }: { children: React.ReactNode }) => {
-  /** Mounting the bridge is what pulls the wallet SDK over the wire. */
-  const [armed, setArmed] = useState(false);
+  /**
+   * The bridge component, once fetched. `next/dynamic` was not enough here: with the import at
+   * module scope Next still emitted `<script src=".../5395.js" async>` into the HTML, so the 375 KiB
+   * arrived on every page load even though nothing rendered it. Importing imperatively, only when a
+   * visitor reaches for a wallet, is what actually keeps it off the first load.
+   */
+  const [Bridge, setBridge] = useState<ComponentType<AppKitBridgeProps> | null>(null);
+  const loading = useRef(false);
   const [snapshot, setSnapshot] = useState<AppKitSnapshot>(EMPTY_SNAPSHOT);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -68,10 +72,16 @@ export const HederaWalletConnectProvider = ({ children }: { children: React.Reac
   const onSettled = useCallback(() => setIsInitializing(false), []);
 
   const prefetchWallet = useCallback(() => {
-    setArmed(armedAlready => {
-      if (!armedAlready) setIsInitializing(true);
-      return true;
-    });
+    if (loading.current) return;
+    loading.current = true;
+    setIsInitializing(true);
+    void import("./appKitBridge")
+      .then(mod => setBridge(() => mod.default))
+      .catch(err => {
+        console.error("Wallet SDK failed to load", err);
+        loading.current = false;
+        setIsInitializing(false);
+      });
   }, []);
 
   const connectWallet = useCallback(async () => {
@@ -113,7 +123,7 @@ export const HederaWalletConnectProvider = ({ children }: { children: React.Reac
 
   return (
     <HederaWalletConnectContext.Provider value={value}>
-      {armed ? <AppKitBridge onApi={onApi} onSnapshot={onSnapshot} onSettled={onSettled} /> : null}
+      {Bridge ? <Bridge onApi={onApi} onSnapshot={onSnapshot} onSettled={onSettled} /> : null}
       {children}
     </HederaWalletConnectContext.Provider>
   );

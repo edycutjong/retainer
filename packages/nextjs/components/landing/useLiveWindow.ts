@@ -114,11 +114,11 @@ export function useLiveWindow(): LiveWindow {
       setRemaining(body.secondsRemaining);
 
       if (lastExpiry.current !== null && body.expiresAt > lastExpiry.current) {
-        seq.current += 1;
+        const entryId = (seq.current += 1);
         setLog(prev =>
           [
             {
-              id: seq.current,
+              id: entryId,
               at: body.now,
               kind: "renewed" as const,
               detail: "the Schedule Service called renew() — no user, no server, no cron",
@@ -131,11 +131,11 @@ export function useLiveWindow(): LiveWindow {
         flashTimer.current = setTimeout(() => setFlash(false), FLASH_MS);
       }
       if (body.usage && lastUsed.current !== null && body.usage.used > lastUsed.current) {
-        seq.current += 1;
+        const entryId = (seq.current += 1);
         setLog(prev =>
           [
             {
-              id: seq.current,
+              id: entryId,
               at: body.now,
               kind: "metered" as const,
               detail: `call metered on-chain · ${body.usage.remaining} of ${body.usage.allowance} left this period`,

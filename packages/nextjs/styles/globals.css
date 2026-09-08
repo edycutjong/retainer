@@ -454,6 +454,36 @@
   line-height: 1.4;
   max-width: 100%;
 }
+
+/* Mode pill: both labels occupy the same grid cell, so the box is always sized to the
+   longer of the two and switching Recorded run <-> Live chain cannot change its width or
+   its line count. Sizing to whichever label is showing made the row jump: REPLAY is the
+   longer string, so at mid widths it wrapped the pill below the tabs and wrapped again
+   inside the pill. */
+.rt-pill__slot {
+  display: grid;
+}
+.rt-pill__slot > .rt-pill__label {
+  grid-area: 1 / 1;
+}
+.rt-pill__label[data-on="false"] {
+  visibility: hidden;
+}
+
+/* Foot row and caption: reserve the taller mode's height so switching Recorded run <->
+   Live chain does not resize the panel and shove the page. Measured in a browser at 1280,
+   900, 640 and 390 CSS px rather than derived from the stylesheet: the foot row is 36px in
+   replay (two 2.25rem buttons) and 44px in live (a 2.75rem input), and at 390px it stacks
+   to 84px vs 100px. The caption is the mirror case — at 390px the replay string wraps to
+   three lines and the live string to two. */
+.rt-foot {
+  min-height: 2.75rem;
+}
+@media (max-width: 639px) {
+  .rt-foot {
+    min-height: 6.25rem;
+  }
+}
 .rt-dot {
   width: 7px;
   height: 7px;
@@ -730,6 +760,14 @@
   color: var(--rt-text-mid);
   text-align: center;
   overflow-wrap: anywhere;
+}
+/* At narrow widths the replay caption wraps to three lines and the live caption to two,
+   so the 3.2em above (two lines) leaves a 20px step on mode switch. Reserve three lines
+   below the breakpoint. Must live AFTER the base rule: same specificity, source order wins. */
+@media (max-width: 639px) {
+  .rt-caption {
+    min-height: 4.8em;
+  }
 }
 .rt-caption strong {
   color: var(--rt-renewed);
@@ -1151,6 +1189,30 @@
   max-width: 62ch;
 }
 
+/* Animate the disclosure itself, not just the + glyph.
+   A native <details> hides its content outright when closed, so the usual 0fr -> 1fr grid
+   trick cannot see it. ::details-content addresses that hidden box directly, and
+   interpolate-size: allow-keywords is what makes a transition to the intrinsic `auto`
+   height legal at all. content-visibility is transitioned with allow-discrete so the text
+   stays painted for the duration instead of disappearing on the first frame.
+   Browsers without support ignore every rule here and keep the current instant open —
+   this is an enhancement, never a dependency. */
+@supports (interpolate-size: allow-keywords) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+}
+.rt-faq details::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition:
+    block-size 280ms var(--rt-ease),
+    content-visibility 280ms var(--rt-ease) allow-discrete;
+}
+.rt-faq details[open]::details-content {
+  block-size: auto;
+}
+
 /* --- Header ----------------------------------------------------------------- */
 .rt-header {
   position: sticky;
@@ -1417,6 +1479,7 @@
   .rt-step,
   .rt-btn,
   .rt-faq summary::after,
+  .rt-faq details::details-content,
   .rt-meter__seg {
     transition: none !important;
     animation: none !important;

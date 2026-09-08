@@ -320,12 +320,16 @@ export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow;
   }, [mode, view.closed, replayFiring, ev, s, live.error, live.loading, live.agent, live.flash, liveAtZero, liveSoon]);
 
   const plateFiring = mode === "replay" ? replayFiring : live.flash;
-  const modeLabel =
-    mode === "replay"
-      ? `REPLAY · ${RECORDED_CONTRACT.date} · ${RECORDED_CONTRACT.id} · ${REPLAY_SPEED}× time`
-      : `LIVE · Hedera testnet · ${
-          s && s.contract.toLowerCase() !== CURRENT_CONTRACT.evm.toLowerCase() ? short(s.contract) : CURRENT_CONTRACT.id
-        }`;
+  // Both labels are always rendered, stacked in one grid cell, with the inactive one hidden.
+  // The REPLAY label is materially longer than the LIVE one, so sizing the pill to whichever
+  // is showing made the row change height on every switch: at mid widths the long label
+  // wrapped the pill below the tabs, and inside the pill it wrapped to a second line. Sizing
+  // the box to the larger of the two, in both dimensions, removes the jump at every width
+  // without a magic min-width to keep in sync with the copy.
+  const replayLabel = `REPLAY · ${RECORDED_CONTRACT.date} · ${RECORDED_CONTRACT.id} · ${REPLAY_SPEED}× time`;
+  const liveLabel = `LIVE · Hedera testnet · ${
+    s && s.contract.toLowerCase() !== CURRENT_CONTRACT.evm.toLowerCase() ? short(s.contract) : CURRENT_CONTRACT.id
+  }`;
 
   return (
     <div
@@ -368,7 +372,14 @@ export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow;
           className={`rt-pill rt-pill--wrap ${mode === "replay" ? "rt-pill--armed" : liveOpen ? "rt-pill--renewed" : "rt-pill--closed"}`}
         >
           <span className={`rt-dot${mode === "live" && liveOpen ? " rt-dot--pulse" : ""}`} aria-hidden="true" />
-          {modeLabel}
+          <span className="rt-pill__slot">
+            <span className="rt-pill__label" aria-hidden={mode !== "replay"} data-on={mode === "replay"}>
+              {replayLabel}
+            </span>
+            <span className="rt-pill__label" aria-hidden={mode !== "live"} data-on={mode === "live"}>
+              {liveLabel}
+            </span>
+          </span>
         </span>
       </div>
 
@@ -418,7 +429,7 @@ export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow;
         </div>
 
         {/* foot row */}
-        <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="rt-foot mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
           {mode === "replay" ? (
             <>
               <button

@@ -306,3 +306,50 @@ curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1
 - It does not prove the network will always have schedule capacity. It cannot — which is why
   the contract asks `hasScheduleCapacity` before arming and lapses cleanly if the answer is no,
   a path that only the mock can exercise on demand.
+
+
+---
+
+## The live service, end to end
+
+The deployed resource server at <https://retainer-plum.vercel.app> running against the current
+contract `0.0.10414167`. This is `packages/nextjs/scripts/retainer-agent.ts` in full, unedited —
+the agent signs exactly one thing, the payment in step 2, and nothing afterwards.
+
+```
+1) cold request — expect 402
+  HTTP 402
+
+2) paying via x402 — settled by Blocky402
+  ✅ settled · tx 0.0.7162784@1788830067.404863715
+
+3) the server opened the subscription with the settled payment
+  subscribed · tx 0x97b7729275031c07ce73c74fd9b9d6badf4999245ce372da6d197c902301b3cc
+
+4) same request again
+  warm request: HTTP 200  paidThisRequest=false
+     window 116s remaining · renewal scheduled at 0x…9eE9d4
+
+5) waiting 165s past expiry — sending NOTHING
+  post-expiry request: HTTP 200  paidThisRequest=false
+     window 70s remaining · renewal scheduled at 0x…9eE9E5
+```
+
+Step 5 is the claim. The request after the window expired was served for free, and the schedule
+address had changed — the contract had already armed the *next* renewal. No user, no server job
+and no cron was involved in extending it.
+
+Verify the settlement:
+
+```bash
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1788830067-404863715" | jq
+```
+
+### One bug this run found
+
+An earlier run of the same script returned **402** at step 4 rather than 200. The route forwarded
+the settled payment and answered immediately with the transaction hash, without waiting for it to
+be mined, so the agent's next request still read no subscription on-chain and would have paid a
+second time for access it had already bought. `openSubscriptionFor` now waits for the receipt
+before reporting access open. It is recorded here because the failure was real, was caught by
+running the thing rather than reading it, and the fix is one the numbers above depend on.

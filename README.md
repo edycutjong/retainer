@@ -5,6 +5,17 @@
 An x402-gated resource on Hedera whose access window is an on-chain subscription that the
 Hedera Schedule Service extends by itself.
 
+**Live:** <https://retainer-plum.vercel.app> · try the gate yourself:
+
+```bash
+# a cold agent is charged
+curl -i "https://retainer-plum.vercel.app/api/retainer/access?agent=0x0000000000000000000000000000000000000abc"
+# → 402, with an x402 challenge for hedera:testnet settled by Blocky402
+
+# read any agent's window without touching the payment path
+curl -s "https://retainer-plum.vercel.app/api/retainer/status?agent=0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66"
+```
+
 ## The problem
 
 An agent can pay for a thing. An agent cannot *subscribe* to a thing, because every renewal

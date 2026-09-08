@@ -1,5 +1,6 @@
 {
-  "name": "Scaffold-HBAR 2 DApp",
-  "description": "A DApp built with Scaffold-HBAR",
-  "iconPath": "logo.svg"
+  "name": "Retainer",
+  "short_name": "Retainer",
+  "description": "Access that renews itself on-chain — an x402-gated feed on Hedera whose subscription the Schedule Service renews with nobody awake.",
+  "iconPath": "icon.svg"
 }

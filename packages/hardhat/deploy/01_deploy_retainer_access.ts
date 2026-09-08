@@ -13,13 +13,19 @@ const deployRetainerAccess: DeployFunction = async function (hre: HardhatRuntime
   const { deployer } = await hre.getNamedAccounts();
   const { deploy } = hre.deployments;
 
+  // The seller's terms, set at deploy time and changeable later via `setTerms`. The
+  // subscriber never chooses the price: letting them do so meant 2 tinybar bought a full
+  // access window while burning 2 HBAR of the seller's gas reserve.
+  const pricePerPeriod = process.env.RETAINER_PRICE_TINYBAR ?? "100000000"; // 1 HBAR
+  const periodSeconds = Number(process.env.RETAINER_PERIOD_SECONDS ?? 3600); // 1 hour
+
   // The beneficiary collects charged periods. Deployer by default.
   // The deploy value seeds the gas reserve: the network charges the CONTRACT for each
-  // scheduled renewal (~1.53 HBAR measured on testnet), so a self-renewing contract has to
+  // scheduled renewal (~1.55 HBAR measured on testnet), so a self-renewing contract has to
   // hold gas for its own future. Seeded for ~4 renewals.
   const deployment = await deploy("RetainerAccess", {
     from: deployer,
-    args: [deployer],
+    args: [deployer, pricePerPeriod, periodSeconds],
     value: (8n * 10n ** 18n).toString(), // 8 HBAR, in weibar
     log: true,
     autoMine: true,

@@ -8,52 +8,57 @@ import {HederaResponseCodes} from "@hiero-ledger/hiero-contracts/common/HederaRe
  * @title RetainerAccess
  * @notice Access that renews itself.
  *
- * An agent can pay for an API call today. It cannot *subscribe* — when the access window
- * expires, something has to pay again, and that something is a human or an off-chain cron
- * job somebody has to keep alive.
+ * An agent can pay for a thing. An agent cannot *subscribe* to a thing: every renewal needs
+ * somebody awake to re-authorise it. This contract removes that person. It uses the Hedera
+ * Schedule Service (HIP-1215, system contract `0x16b`) to call `renew()` on itself at the
+ * moment the current window expires. The renewal charges the next period, extends the window,
+ * and schedules the following renewal.
  *
- * This contract removes both. An agent funds a balance and subscribes. The contract asks the
- * Hedera Schedule Service (HIP-1215, system contract `0x16b`) to call `renew()` on itself at
- * the moment the window expires. When the network fires that call, the contract charges the
- * next period, extends the window, and schedules the following renewal.
- *
- * ## Three separate pots of HBAR
- *
- * The contract's native balance is not one pool. Conflating them is how an autonomous
- * contract quietly becomes insolvent, so they are tracked apart:
+ * ## Money is kept in three separate pots
  *
  *  - `_owed`       subscriber money, refundable on `cancel()`. Never spent on anything else.
  *  - `revenue`     charged periods, withdrawable by `beneficiary`. This is the seller's.
- *  - `gasReserve`  pays for scheduled executions. **The network charges the CONTRACT for a
- *                  scheduled call**, so a self-renewing contract must hold gas for its own
- *                  future. Measured cost is ~1.53 HBAR per renewal on testnet — more than a
- *                  typical period price, which is the real economic constraint of on-chain
- *                  self-renewal and is deliberately not hidden.
+ *  - `gasReserve`  the network charges **the contract** for each scheduled call, so a
+ *                  self-renewing contract must hold gas for its own future.
  *
  * `_solvent()` asserts the native balance still covers all three.
+ *
+ * ## Units — the sharpest edge on Hedera
+ *
+ * Hedera's EVM denominates `msg.value` and `address(this).balance` in **weibar**, while the
+ * network's own accounting is in **tinybar**, at 1 tinybar = 1e10 weibar. This contract stores
+ * every amount in tinybar and converts only at the EVM boundary: `_toTinybar` on the way in,
+ * `_toWeibar` on the way out. Mixing the two silently underpays a transfer by ten orders of
+ * magnitude, which is a bug that looks like a successful transaction.
  *
  * ## Why renewal can stop
  *
  * A subscription ends loudly, never silently:
  *  - the subscriber cancels, or
  *  - their balance cannot cover the next period, or
- *  - the gas reserve cannot cover the next scheduled execution.
+ *  - the gas reserve cannot cover the next scheduled execution, or
+ *  - the network has no schedule capacity at that second.
  *
- * The third case matters. `Lapsed` is emitted **before** scheduling, because a scheduled call
- * that cannot pay for itself fails with `INSUFFICIENT_PAYER_BALANCE` and emits nothing at all
- * — the subscription would otherwise look alive forever while being dead.
+ * `Lapsed` is emitted **before** scheduling, because a scheduled call that cannot pay for
+ * itself fails with `INSUFFICIENT_PAYER_BALANCE` and emits nothing at all — the subscription
+ * would otherwise look alive forever while being dead.
  */
 contract RetainerAccess is HederaScheduleService {
     struct Subscription {
         uint256 balance;        // tinybar, refundable
-        uint256 pricePerPeriod; // tinybar
+        uint256 pricePerPeriod; // tinybar, snapshotted at subscribe time
         uint256 expiresAt;      // unix seconds
         uint32  periodSeconds;
         bool    active;
         address schedule;       // pending scheduled call, if any
     }
 
-    /// Gas handed to the scheduled `renew()`. Measured: `subscribe()` used 1,531,677 on testnet.
+    /// 1 tinybar = 1e10 weibar. The only place this ratio is written down.
+    uint256 private constant WEIBAR_PER_TINYBAR = 1e10;
+
+    /// Gas handed to the scheduled `renew()`. Measured on testnet: a renewal that re-arms the
+    /// next one consumes ~1.5M gas, almost all of it the `scheduleCall` into `0x16b` itself.
+    /// See `docs/gas-economics.md` for the measurement and what it costs per renewal.
     uint256 private constant RENEWAL_GAS_LIMIT = 2_500_000;
 
     /**
@@ -63,21 +68,33 @@ contract RetainerAccess is HederaScheduleService {
      * firing one second early (scheduled 1788779925, executed 1788779924). A strict
      * `block.timestamp >= expiresAt` gate therefore rejects the network's own scheduled call
      * and the subscription silently fails to renew.
-     *
-     * The slack has to be large enough to absorb consensus timing and small enough to be
-     * worthless to an attacker: renewing a few seconds early neither grants free access nor
-     * meaningfully accelerates spending, since each renewal still charges a full period.
      */
     uint256 private constant RENEW_SLACK = 30;
 
     /**
-     * Gas reserve required per scheduled renewal, in tinybar. Measured at 1.5319 HBAR on
+     * Shortest period the seller may configure.
+     *
+     * This is a security bound, not a product one. `renew()` is callable by anyone once
+     * `block.timestamp + RENEW_SLACK >= expiresAt`. If a period were shorter than the slack,
+     * that window would be open continuously and a third party could loop `renew()` — each
+     * call charging the subscriber and burning `RENEWAL_COST_ESTIMATE` of the seller's gas
+     * reserve. Requiring `periodSeconds > 2 * RENEW_SLACK` keeps the callable window a
+     * strict minority of every period.
+     */
+    uint32 public constant MIN_PERIOD_SECONDS = 61;
+
+    /**
+     * Gas reserve required per scheduled renewal, in tinybar. Measured at 1.5490 HBAR on
      * testnet; carries headroom for gas-price movement. An on-chain contract cannot know the
      * exact future fee, so this is an explicit, documented estimate rather than a guarantee.
      */
     uint256 public constant RENEWAL_COST_ESTIMATE = 200_000_000; // 2 HBAR
 
     address public immutable beneficiary;
+
+    /// Seller-set terms. A running subscription keeps the terms it started on.
+    uint256 public pricePerPeriod; // tinybar
+    uint32  public periodSeconds;
 
     uint256 public revenue;    // charged periods, withdrawable by beneficiary
     uint256 public gasReserve; // funds scheduled executions
@@ -87,8 +104,10 @@ contract RetainerAccess is HederaScheduleService {
 
     event Funded(address indexed agent, uint256 amount, uint256 balance);
     event GasReserveFunded(address indexed from, uint256 amount, uint256 reserve);
+    event TermsSet(uint256 pricePerPeriod, uint32 periodSeconds);
     event SubscriptionStarted(address indexed agent, uint256 pricePerPeriod, uint32 periodSeconds, uint256 expiresAt);
     event RenewalScheduled(address indexed agent, address schedule, uint256 firesAt);
+    event RenewalCancelled(address indexed agent, address schedule, uint256 reclaimed);
     event Renewed(address indexed agent, uint256 paid, uint256 expiresAt, uint256 balance);
     event Lapsed(address indexed agent, string reason);
     event Cancelled(address indexed agent, uint256 refunded);
@@ -97,6 +116,7 @@ contract RetainerAccess is HederaScheduleService {
     error NothingToFund();
     error AlreadyActive();
     error InvalidTerms();
+    error TermsNotSet();
     error InsufficientBalance();
     error NotSubscribed();
     error ScheduleFailed(int64 responseCode);
@@ -104,55 +124,97 @@ contract RetainerAccess is HederaScheduleService {
     error NotBeneficiary();
     error Insolvent();
     error TransferFailed();
+    error DustAmount();
 
-    constructor(address beneficiary_) payable {
+    modifier onlyBeneficiary() {
+        if (msg.sender != beneficiary) revert NotBeneficiary();
+        _;
+    }
+
+    constructor(address beneficiary_, uint256 pricePerPeriod_, uint32 periodSeconds_) payable {
         beneficiary = beneficiary_ == address(0) ? msg.sender : beneficiary_;
-        if (msg.value > 0) {
-            gasReserve += _toTinybar(msg.value);
-            emit GasReserveFunded(msg.sender, _toTinybar(msg.value), gasReserve);
+        if (pricePerPeriod_ != 0 || periodSeconds_ != 0) {
+            _setTerms(pricePerPeriod_, periodSeconds_);
         }
+        if (msg.value > 0) {
+            uint256 amount = _toTinybar(msg.value);
+            gasReserve += amount;
+            emit GasReserveFunded(msg.sender, amount, gasReserve);
+        }
+    }
+
+    /**
+     * @notice The seller sets the price. The subscriber does not.
+     * @dev Terms are snapshotted into each `Subscription` at `subscribe()` time, so changing
+     *      them never reprices a subscription that is already running.
+     */
+    function setTerms(uint256 pricePerPeriod_, uint32 periodSeconds_) external onlyBeneficiary {
+        _setTerms(pricePerPeriod_, periodSeconds_);
+    }
+
+    function _setTerms(uint256 pricePerPeriod_, uint32 periodSeconds_) private {
+        if (pricePerPeriod_ == 0 || periodSeconds_ < MIN_PERIOD_SECONDS) revert InvalidTerms();
+        pricePerPeriod = pricePerPeriod_;
+        periodSeconds = periodSeconds_;
+        emit TermsSet(pricePerPeriod_, periodSeconds_);
     }
 
     /// @notice Top up the reserve that pays for scheduled executions. Anyone may contribute.
     function fundGasReserve() external payable {
-        if (msg.value == 0) revert NothingToFund();
         uint256 amount = _toTinybar(msg.value);
+        if (amount == 0) revert NothingToFund();
         gasReserve += amount;
         emit GasReserveFunded(msg.sender, amount, gasReserve);
     }
 
-    /// @notice Add refundable funds the subscription draws on.
+    /// @notice Add refundable funds the caller's own subscription draws on.
     function fund() external payable {
-        if (msg.value == 0) revert NothingToFund();
-        uint256 amount = _toTinybar(msg.value);
-        Subscription storage s = _subs[msg.sender];
-        s.balance += amount;
-        _owed += amount;
-        emit Funded(msg.sender, amount, s.balance);
+        _credit(msg.sender, msg.value);
     }
 
-    /// @notice Start a self-renewing subscription. Charges the first period immediately.
-    function subscribe(uint256 pricePerPeriod, uint32 periodSeconds) external payable {
+    /**
+     * @notice Credit a settled x402 payment to `agent`'s subscription.
+     * @dev This is the join between the two rails. The resource server settles an x402 payment
+     *      through the Blocky402 facilitator, then calls this with the paid amount so the
+     *      agent's on-chain balance — the thing `renew()` draws down unattended — actually
+     *      grows. Without it, paying the 402 and holding a subscription are unrelated events.
+     *
+     *      Deliberately permissionless: it only ever *adds* refundable money to the named
+     *      agent's pot. There is no way to credit yourself at anyone's expense.
+     */
+    function creditFor(address agent) external payable {
+        _credit(agent, msg.value);
+    }
+
+    function _credit(address agent, uint256 weibarValue) private {
+        uint256 amount = _toTinybar(weibarValue);
+        if (weibarValue == 0) revert NothingToFund();
+        // Below 1 tinybar the network cannot represent the value; crediting it would either
+        // mint balance from nothing or silently keep the dust.
+        if (amount == 0) revert DustAmount();
+        Subscription storage s = _subs[agent];
+        s.balance += amount;
+        _owed += amount;
+        emit Funded(agent, amount, s.balance);
+    }
+
+    /// @notice Start a self-renewing subscription on the seller's terms. Charges period one now.
+    function subscribe() external payable {
         Subscription storage s = _subs[msg.sender];
         if (s.active) revert AlreadyActive();
-        if (pricePerPeriod == 0 || periodSeconds == 0) revert InvalidTerms();
+        if (pricePerPeriod == 0 || periodSeconds == 0) revert TermsNotSet();
 
-        if (msg.value > 0) {
-            uint256 amount = _toTinybar(msg.value);
-            s.balance += amount;
-            _owed += amount;
-            emit Funded(msg.sender, amount, s.balance);
-        }
+        if (msg.value > 0) _credit(msg.sender, msg.value);
         if (s.balance < pricePerPeriod) revert InsufficientBalance();
 
-        _charge(s, pricePerPeriod);
         s.pricePerPeriod = pricePerPeriod;
         s.periodSeconds = periodSeconds;
-        s.expiresAt = block.timestamp + periodSeconds;
+        _charge(s, s.pricePerPeriod);
+        s.expiresAt = block.timestamp + s.periodSeconds;
         s.active = true;
 
-        emit SubscriptionStarted(msg.sender, pricePerPeriod, periodSeconds, s.expiresAt);
-        _armRenewal(msg.sender, s);
+        emit SubscriptionStarted(msg.sender, s.pricePerPeriod, s.periodSeconds, s.expiresAt);
+        _armRenewal(msg.sender, s, true);
         _solvent();
     }
 
@@ -164,6 +226,7 @@ contract RetainerAccess is HederaScheduleService {
      *      every forced renewal would burn the contract's own HBAR. The time gate is what makes
      *      a public function safe here; "it only touches that agent's own balance" is not
      *      sufficient reasoning, because scheduling itself costs the contract money.
+     *      `MIN_PERIOD_SECONDS` is what stops that gate from being permanently open.
      */
     function renew(address agent) external {
         Subscription storage s = _subs[agent];
@@ -172,6 +235,7 @@ contract RetainerAccess is HederaScheduleService {
         // second early. Without it the griefing fix silently breaks self-renewal.
         if (block.timestamp + RENEW_SLACK < s.expiresAt) revert TooEarly(block.timestamp, s.expiresAt);
 
+        // The schedule that brought us here has executed and no longer exists.
         s.schedule = address(0);
 
         if (s.balance < s.pricePerPeriod) {
@@ -181,11 +245,16 @@ contract RetainerAccess is HederaScheduleService {
         }
 
         _charge(s, s.pricePerPeriod);
-        // Extend from the previous expiry so windows do not drift if execution is late.
+        // Grant a full period from whichever is later: the window that just ended, or now.
+        // Anchoring on the old expiry keeps windows from drifting when execution is a second
+        // early; falling back to `block.timestamp` means a renewal that ran *late* never hands
+        // back a window that has already been spent.
         s.expiresAt = (s.expiresAt > block.timestamp ? s.expiresAt : block.timestamp) + s.periodSeconds;
         emit Renewed(agent, s.pricePerPeriod, s.expiresAt, s.balance);
 
-        _armRenewal(agent, s);
+        // `false`: a scheduling failure inside the network's own scheduled call must not revert
+        // the renewal that already succeeded. It lapses loudly instead.
+        _armRenewal(agent, s, false);
         _solvent();
     }
 
@@ -193,6 +262,10 @@ contract RetainerAccess is HederaScheduleService {
     function cancel() external {
         Subscription storage s = _subs[msg.sender];
         if (s.pricePerPeriod == 0) revert NotSubscribed();
+
+        // Release the pending scheduled call and reclaim the gas held against it. Without
+        // this, subscribe→cancel churn is a free, repeatable drain of the seller's reserve.
+        _releaseSchedule(msg.sender, s);
 
         s.active = false;
         s.pricePerPeriod = 0;
@@ -202,11 +275,11 @@ contract RetainerAccess is HederaScheduleService {
 
         emit Cancelled(msg.sender, refund);
         if (refund > 0) _send(msg.sender, refund);
+        _solvent();
     }
 
     /// @notice Beneficiary collects charged periods. Subscriber funds and gas reserve are untouchable.
-    function withdraw(uint256 amount) external {
-        if (msg.sender != beneficiary) revert NotBeneficiary();
+    function withdraw(uint256 amount) external onlyBeneficiary {
         if (amount == 0 || amount > revenue) revert InsufficientBalance();
         revenue -= amount;
         emit Withdrawn(beneficiary, amount);
@@ -214,6 +287,12 @@ contract RetainerAccess is HederaScheduleService {
         _solvent();
     }
 
+    /**
+     * @notice Whether `agent` may use the service right now.
+     * @dev Deliberately keyed on the window, not on `active`. A cancelled subscriber has already
+     *      paid for the period they are inside; `cancel()` refunds the *unspent* balance only.
+     *      Revoking access they paid for would be theft in the other direction.
+     */
     function hasAccess(address agent) external view returns (bool) {
         return block.timestamp < _subs[agent].expiresAt;
     }
@@ -221,7 +300,7 @@ contract RetainerAccess is HederaScheduleService {
     function subscriptionOf(address agent)
         external
         view
-        returns (uint256 balance, uint256 pricePerPeriod, uint256 expiresAt, uint32 periodSeconds, bool active, address schedule)
+        returns (uint256 balance, uint256 price, uint256 expiresAt, uint32 period, bool active, address schedule)
     {
         Subscription storage s = _subs[agent];
         return (s.balance, s.pricePerPeriod, s.expiresAt, s.periodSeconds, s.active, s.schedule);
@@ -230,7 +309,10 @@ contract RetainerAccess is HederaScheduleService {
     /// @notice Total subscriber money the contract owes back.
     function owed() external view returns (uint256) { return _owed; }
 
-    // ── internals ─────────────────────────────────────────────────────────────
+    /// @notice How many further renewals the current gas reserve can arm.
+    function renewalsRemaining() external view returns (uint256) {
+        return gasReserve / RENEWAL_COST_ESTIMATE;
+    }
 
     function _charge(Subscription storage s, uint256 amount) private {
         s.balance -= amount;
@@ -239,12 +321,16 @@ contract RetainerAccess is HederaScheduleService {
     }
 
     /**
-     * @dev Schedule the next renewal, but only if the reserve can pay for it. Emitting
-     *      `Lapsed` here — before scheduling — is the difference between a subscription that
-     *      ends visibly and one that dies with no event at all when the scheduled call cannot
-     *      afford to run.
+     * @dev Schedule the next renewal, but only if the reserve can pay for it and the network
+     *      has capacity at that second. Emitting `Lapsed` here — before scheduling — is the
+     *      difference between a subscription that ends visibly and one that dies with no event
+     *      at all when the scheduled call cannot afford to run.
+     * @param strict when true (a user-facing `subscribe()`), a scheduling failure reverts the
+     *      whole call. When false (inside the network's scheduled `renew()`), it lapses loudly,
+     *      because reverting would undo a renewal that already succeeded and, worse, leave no
+     *      event behind.
      */
-    function _armRenewal(address agent, Subscription storage s) private {
+    function _armRenewal(address agent, Subscription storage s, bool strict) private {
         if (s.balance < s.pricePerPeriod) {
             s.active = false;
             emit Lapsed(agent, "balance will not cover the next period");
@@ -255,29 +341,58 @@ contract RetainerAccess is HederaScheduleService {
             emit Lapsed(agent, "gas reserve will not cover the next renewal");
             return;
         }
+        // HIP-1215 exposes capacity up front. Asking first turns a failed schedule into a
+        // clean lapse rather than a revert or a subscription that quietly stops.
+        if (!hasScheduleCapacity(s.expiresAt, RENEWAL_GAS_LIMIT)) {
+            s.active = false;
+            emit Lapsed(agent, "no schedule capacity at that second");
+            return;
+        }
+
         gasReserve -= RENEWAL_COST_ESTIMATE;
 
         bytes memory callData = abi.encodeWithSelector(this.renew.selector, agent);
         (int64 rc, address scheduleAddress) =
             scheduleCall(address(this), s.expiresAt, RENEWAL_GAS_LIMIT, 0, callData);
-        if (rc != HederaResponseCodes.SUCCESS) revert ScheduleFailed(rc);
+
+        if (rc != HederaResponseCodes.SUCCESS) {
+            gasReserve += RENEWAL_COST_ESTIMATE; // nothing was scheduled; give it back
+            if (strict) revert ScheduleFailed(rc);
+            s.active = false;
+            emit Lapsed(agent, "network refused the schedule");
+            return;
+        }
 
         s.schedule = scheduleAddress;
         emit RenewalScheduled(agent, scheduleAddress, s.expiresAt);
     }
 
-    /// @dev `msg.value` arrives in weibar; everything stored on-chain is tinybar (1e10 weibar).
-    function _toTinybar(uint256 weibar) private pure returns (uint256) {
-        return weibar >= 1e10 ? weibar / 1e10 : weibar;
+    /// @dev Delete a pending schedule and return its held gas to the reserve.
+    function _releaseSchedule(address agent, Subscription storage s) private {
+        address pending = s.schedule;
+        if (pending == address(0)) return;
+        s.schedule = address(0);
+        // A schedule that already fired cannot be deleted; that is not an error here.
+        if (deleteSchedule(pending) == HederaResponseCodes.SUCCESS) {
+            gasReserve += RENEWAL_COST_ESTIMATE;
+            emit RenewalCancelled(agent, pending, RENEWAL_COST_ESTIMATE);
+        }
     }
 
+    /// @dev `msg.value` arrives in weibar; everything stored on-chain is tinybar.
+    function _toTinybar(uint256 weibar) private pure returns (uint256) {
+        return weibar / WEIBAR_PER_TINYBAR;
+    }
+
+    /// @dev Outbound transfers must be denominated back in weibar, or they underpay by 1e10.
     function _send(address to, uint256 tinybar) private {
-        (bool ok, ) = payable(to).call{value: tinybar}("");
+        (bool ok, ) = payable(to).call{value: tinybar * WEIBAR_PER_TINYBAR}("");
         if (!ok) revert TransferFailed();
     }
 
     /// @dev The contract must always be able to honour refunds, revenue and scheduled gas.
+    ///      Compared in tinybar on both sides — the balance is weibar and must be converted.
     function _solvent() private view {
-        if (address(this).balance < _owed + revenue + gasReserve) revert Insolvent();
+        if (_toTinybar(address(this).balance) < _owed + revenue + gasReserve) revert Insolvent();
     }
 }

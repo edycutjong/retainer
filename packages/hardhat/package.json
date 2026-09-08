@@ -27,6 +27,7 @@
     "@ethersproject/abi": "~5.8.0",
     "@ethersproject/providers": "~5.8.0",
     "@hashgraph/system-contracts-forking": "0.1.2",
+    "@nomicfoundation/ethereumjs-util": "9.0.4",
     "@nomicfoundation/hardhat-chai-matchers": "~2.1.2",
     "@nomicfoundation/hardhat-ethers": "~3.1.3",
     "@nomicfoundation/hardhat-network-helpers": "~1.1.2",

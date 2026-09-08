@@ -15,10 +15,10 @@ Hedera Schedule Service extends by itself.</p>
 
 <br/>
 
-[![Live Demo](https://img.shields.io/badge/🚀_Live-Demo-06b6d4?style=for-the-badge)](https://retainer-plum.vercel.app)
+[![Live Demo](https://img.shields.io/badge/🚀_Live-Demo-06b6d4?style=for-the-badge)](https://retainer.edycu.dev)
 [![Live Contract](https://img.shields.io/badge/⛓️_HashScan-0.0.10415845-8b5cf6?style=for-the-badge)](https://hashscan.io/testnet/contract/0.0.10415845)
 [![Built for ETHOnline 2026](https://img.shields.io/badge/ETHGlobal-ETHOnline_2026-1f6feb?style=for-the-badge)](https://ethglobal.com/events/ethonline2026)
-[![For judges](https://img.shields.io/badge/⚖️_For-Judges-f59e0b?style=for-the-badge)](https://retainer-plum.vercel.app/judge)
+[![For judges](https://img.shields.io/badge/⚖️_For-Judges-f59e0b?style=for-the-badge)](https://retainer.edycu.dev/judge)
 
 <br/>
 
@@ -35,17 +35,17 @@ Hedera Schedule Service extends by itself.</p>
 
 ---
 
-**Live:** <https://retainer-plum.vercel.app> · **judging this?** the 30-second read is at
-<https://retainer-plum.vercel.app/judge> ([`JUDGE.md`](JUDGE.md)) — claim, four commands that
+**Live:** <https://retainer.edycu.dev> · **judging this?** the 30-second read is at
+<https://retainer.edycu.dev/judge> ([`JUDGE.md`](JUDGE.md)) — claim, four commands that
 prove it against Hedera, the measured costs, and the limitations. Or try the gate yourself:
 
 ```bash
 # a cold agent is charged
-curl -i "https://retainer-plum.vercel.app/api/retainer/access?agent=0x0000000000000000000000000000000000000abc"
+curl -i "https://retainer.edycu.dev/api/retainer/access?agent=0x0000000000000000000000000000000000000abc"
 # → 402, with an x402 challenge for hedera:testnet settled by Blocky402
 
 # read any agent's window without touching the payment path
-curl -s "https://retainer-plum.vercel.app/api/retainer/status?agent=0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66"
+curl -s "https://retainer.edycu.dev/api/retainer/status?agent=0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66"
 ```
 
 ## 💡 The Problem & Solution

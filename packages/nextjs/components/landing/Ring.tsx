@@ -90,9 +90,20 @@ export function Ring({ frac, seconds, armed, open, soon, firing, tweening, label
         </g>
         {/* the ripple from the pin when the scheduled call fires */}
         <circle className={`rt-ring__ripple${firing ? " is-firing" : ""}`} cx="110" cy="18" r="60" />
-        {/* the pin: the scheduled call, armed on the seam */}
-        <rect className={`rt-ring__pin${armed ? "" : " is-unarmed"}`} x="102" y="6" width="16" height="22" rx="6" />
-        <rect className="rt-ring__pinslot" x="106.5" y="11" width="7" height="3" rx="1.5" />
+        {/* The pin: the scheduled call, armed on the seam — and it presses when it fires.
+            Geometry is the brand mark's clicker at exactly one third scale (48x54 -> 16x18),
+            so the same object reads the same in the icon, the README hero and here. */}
+        <g className={`rt-ring__press${firing ? " is-firing" : ""}`}>
+          <rect
+            className={`rt-ring__pin${armed ? "" : " is-unarmed"}`}
+            x="102"
+            y="6"
+            width="16"
+            height="18"
+            rx="4.67"
+          />
+          <rect className="rt-ring__pinslot" x="106" y="10" width="8" height="3.33" rx="1.67" />
+        </g>
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 pointer-events-none">
         <span className={readoutClass} aria-hidden="true">

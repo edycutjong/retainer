@@ -1,0 +1,17 @@
+# Public-repo media: ignore everything here, then re-include ONLY what a judge-facing
+# surface actually renders. `assets/` in the private project is the canonical home for all
+# project media; scripts/sync-assets.sh copies a superset of it into this folder, and
+# without this file every one of those lands in the public repository whether or not
+# anything links to it.
+#
+# Verified before writing: README.md is the only file in this repository that references
+# docs/assets/*, and it references exactly these two. The app's own icon and social card
+# are served from packages/nextjs/public/ (`/icon.svg`, `/og-image.png`) — separate copies,
+# unaffected by anything here.
+#
+# Adding a new image? Reference it, then re-include it below. If it needs no rule, nothing
+# renders it.
+*
+!.gitignore
+!icon-animated.svg
+!readme-hero-animated.svg

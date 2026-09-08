@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/icon.svg" alt="Retainer — access that renews itself" width="144">
+<img src="docs/assets/icon-animated.svg" alt="Retainer — access that renews itself" width="144">
 
 <h1>Retainer 🔁</h1>
 

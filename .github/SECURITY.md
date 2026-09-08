@@ -65,6 +65,37 @@ aspirations. Each bullet names the test that pins it.
   is set at 2 HBAR against a measured 1.549 HBAR to carry headroom for gas-price movement.
 - **Not audited.** No formal review, no bug bounty, testnet only.
 
+## Dependency alerts — what the count means
+
+Dependabot alerts, automated security fixes, and secret scanning with push protection are all
+enabled on this repository, and the alert count is not small. That is worth explaining rather
+than hiding, because the number is a fact anyone can see.
+
+This repo was built from [`hedera-dev/scaffold-hbar`](https://github.com/hedera-dev/scaffold-hbar),
+whose wallet stack (`@reown/appkit`, `@walletconnect/*`, `@hiero-ledger/sdk`, `wagmi`) pulls in
+a very large transitive tree. Nearly every open alert is a transitive dependency of that tree
+or of the build tooling — `axios`, `protobufjs`, `handlebars`, `tar`, `undici`, `ws` — reached
+through paths that this project's own code does not call.
+
+What is deliberate about how that is handled:
+
+- **Alerts are on, not silenced.** Turning them off would make the security tab look better and
+  the repository less safe. The count is the honest state of an inherited dependency tree.
+- **Dependabot is grouped, monthly, and ignores majors** (`.github/dependabot.yml`). Security
+  updates are a *separate channel* from version updates and are unaffected by that config: they
+  still open PRs. The version-update throttle exists because this repo is a judged artifact
+  pointing at a live deploy and a deployed contract, and a `next` 15→16 PR merged unattended
+  would break exactly the thing being judged.
+- **The high-value surface is small and is tested.** The money logic is
+  `RetainerAccess.sol` — Solidity, no npm dependencies except OpenZeppelin and the Hedera
+  system-contract interfaces — plus two API routes. That is what the tests above cover.
+- **Nothing here holds mainnet value.** Testnet only, unaudited, by design for a hackathon.
+
+A mass lockfile remediation across that tree is a real piece of work with a real chance of
+breaking the live deploy, and doing it in the days before a submission deadline would trade a
+cosmetic improvement for the risk of a broken demo. It is listed here as known and outstanding
+rather than quietly closed.
+
 ## Secrets
 
 Credentials for this project live outside the repository, in `~/.config/retainer/`. No key,

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/edycutjong/retainer/security/advisories/new
+    about: Report privately instead of opening a public issue. See SECURITY.md.
+  - name: Live deployment and on-chain proof
+    url: https://github.com/edycutjong/retainer/blob/main/docs/proof.md
+    about: Every transaction, schedule and event, with curl commands to re-verify them.

@@ -39,8 +39,11 @@ export function hbarToTinybar(hbar: string): bigint {
   const [whole = "0", fraction = ""] = trimmed.split(".");
   if (fraction.length > 8) throw new Error("HBAR supports at most 8 decimal places");
 
+  // `whole` still needs its fallback: ".5".split(".") is ["", "5"], and a destructuring
+  // default only fires on undefined, not on "". `paddedFraction` needs none — padEnd(8, "0")
+  // returns at least eight characters for every input the regex above admits.
   const paddedFraction = fraction.padEnd(8, "0");
-  return BigInt(whole || "0") * TINYBAR_PER_HBAR + BigInt(paddedFraction || "0");
+  return BigInt(whole || "0") * TINYBAR_PER_HBAR + BigInt(paddedFraction);
 }
 
 /**

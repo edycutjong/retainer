@@ -705,6 +705,30 @@
 .rt-ring__pin.is-unarmed + .rt-ring__pinslot {
   fill: rgba(255, 255, 255, 0.35);
 }
+
+/* The clicker presses when the scheduled call fires — the same gesture the brand mark makes.
+   The icon dips 7px on a 54-tall box (0.13 of its height) with a slight overshoot; this pin is
+   that object at one third scale, so it dips 2.34px on 18 with the identical easing. Keeping
+   the ratio rather than copying the pixel value is what makes the three surfaces feel like one
+   object rather than three drawings of one. */
+.rt-ring__press {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.rt-ring__press.is-firing {
+  animation: rt-clicker-press 620ms cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes rt-clicker-press {
+  0% {
+    transform: translateY(0);
+  }
+  22% {
+    transform: translateY(2.34px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
 .rt-ring__ripple {
   fill: none;
   stroke: var(--rt-renewed);
@@ -761,13 +785,13 @@
   text-align: center;
   overflow-wrap: anywhere;
 }
-/* At narrow widths the replay caption wraps to three lines and the live caption to two,
-   so the 3.2em above (two lines) leaves a 20px step on mode switch. Reserve three lines
-   below the breakpoint. Must live AFTER the base rule: same specificity, source order wins. */
-@media (max-width: 639px) {
-  .rt-caption {
-    min-height: 4.8em;
-  }
+/* Three lines reserved at every width, not just narrow ones. The caption grows by a line
+   the moment a renewal fires — that is the longest string it ever shows — so reserving only
+   two lines made the plate jump 20px on every single renewal and shrink back after. Measured
+   stepping the replay: 42px idle, 62px firing. Must live AFTER the base rule: same
+   specificity, source order decides. */
+.rt-caption {
+  min-height: 4.8em;
 }
 .rt-caption strong {
   color: var(--rt-renewed);
@@ -778,7 +802,10 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.4rem;
-  min-height: 2rem;
+  /* Two chip rows, measured at 63px. Receipts accumulate as the run proceeds and wrap to a
+     second row partway through; reserving one row meant the plate grew 31px mid-replay and
+     shoved everything below it. */
+  min-height: 3.9375rem;
 }
 .rt-chip {
   display: inline-flex;
@@ -1471,6 +1498,7 @@
   .rt-ring__refill,
   .rt-ring__pin,
   .rt-ring__pinslot,
+  .rt-ring__press,
   .rt-readout,
   .rt-plate,
   .rt-chip,

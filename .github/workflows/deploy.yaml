@@ -77,10 +77,17 @@ jobs:
       - name: Smoke test the live gate
         # A deploy that returns 200 on the homepage but no longer answers 402 on the paid
         # route has broken the one thing the bounty is judged on, so check it explicitly.
+        #
+        # Points at the canonical custom domain, and follows redirects (-L). The generated
+        # *.vercel.app hostname now 308s here, so a check pinned to it would assert 402 and
+        # receive a redirect — green pipeline, dead gate, which is the exact failure this
+        # step exists to catch.
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://retainer.edycu.dev' }}
         run: |
-          url="https://retainer-plum.vercel.app"
+          url="$SITE_URL"
           echo "checking $url/api/retainer/access"
-          code=$(curl -s -o /tmp/gate.json -w '%{http_code}' \
+          code=$(curl -sL -o /tmp/gate.json -w '%{http_code}' \
             "$url/api/retainer/access?agent=0x0000000000000000000000000000000000000abc")
           echo "HTTP $code"; cat /tmp/gate.json
           test "$code" = "402" || { echo "::error::expected 402 from the x402 gate, got $code"; exit 1; }

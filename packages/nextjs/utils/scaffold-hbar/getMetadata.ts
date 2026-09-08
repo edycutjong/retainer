@@ -12,16 +12,31 @@ const baseUrl =
     : "https://retainer.edycu.dev");
 const titleTemplate = "%s | Retainer";
 
+// The social card is its own asset, separate from og-image.png: it is exported at 1x so the file
+// is exactly the 1200x630 declared below (a 2400x1260 file gets resampled by each platform's own
+// scaler), and it carries a call to action, which is the one thing still legible at feed size.
+//
+// BUMP THE ?v= WHENEVER THE IMAGE CHANGES. Discord, X and Slack cache the card by URL and offer
+// no purge; a regenerated file at an unchanged URL is invisible to everyone who has already seen it.
+const SOCIAL_CARD = "/og-card.png?v=1";
+const SOCIAL_CARD_ALT =
+  "Retainer social card: one signature buys access, then 19 unattended renewals executed by the network, with the countdown ring caught refilling to 60:00";
+
 export const getMetadata = ({
   title,
   description,
-  imageRelativePath = "/og-image.png",
+  cardDescription,
+  imageRelativePath = SOCIAL_CARD,
 }: {
   title: string;
+  /** Feeds <meta name="description">. Google truncates around 155 characters. */
   description: string;
+  /** Feeds og: and twitter:. Mobile clips at ~125, earlier than desktop — keep it shorter. */
+  cardDescription?: string;
   imageRelativePath?: string;
 }): Metadata => {
   const imageUrl = `${baseUrl}${imageRelativePath}`;
+  const social = cardDescription ?? description;
 
   return {
     metadataBase: new URL(baseUrl),
@@ -30,28 +45,36 @@ export const getMetadata = ({
       template: titleTemplate,
     },
     description: description,
+    authors: [{ name: "Edy Cu", url: "https://github.com/edycutjong" }],
+    creator: "Edy Cu",
+    alternates: { canonical: baseUrl },
     openGraph: {
+      type: "website",
+      url: baseUrl,
+      // Discord renders this above the title; without it the card reads as anonymous.
+      siteName: "Retainer",
       title: {
         default: title,
         template: titleTemplate,
       },
-      description: description,
+      description: social,
       images: [
         {
           url: imageUrl,
-          width: 2400,
-          height: 1260,
-          alt: "Retainer — one signature per subscription, 19 unattended renewals: the access window drains to zero and the network's own scheduled call refills it",
+          width: 1200,
+          height: 630,
+          alt: SOCIAL_CARD_ALT,
         },
       ],
     },
     twitter: {
+      card: "summary_large_image",
       title: {
         default: title,
         template: titleTemplate,
       },
-      description: description,
-      images: [imageUrl],
+      description: social,
+      images: [{ url: imageUrl, alt: SOCIAL_CARD_ALT }],
     },
     icons: {
       icon: [{ url: "/icon.svg", sizes: "any", type: "image/svg+xml" }],

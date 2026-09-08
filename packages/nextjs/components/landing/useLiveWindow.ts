@@ -27,8 +27,12 @@ export type Status = {
   periodsFunded: number;
   active: boolean;
   nextRenewalSchedule: string;
-  renewalsReserveCanArm: number;
-  usage: Usage;
+  /** `null` when the auxiliary reserve read failed on this poll — unknown, not zero. */
+  renewalsReserveCanArm: number | null;
+  /** `null` when the auxiliary usage read failed on this poll — unknown, not empty. */
+  usage: Usage | null;
+  /** Names of the auxiliary fields the chain did not answer on this poll. */
+  unavailable?: string[];
   now: number;
 };
 
@@ -126,7 +130,7 @@ export function useLiveWindow(): LiveWindow {
         if (flashTimer.current) clearTimeout(flashTimer.current);
         flashTimer.current = setTimeout(() => setFlash(false), FLASH_MS);
       }
-      if (lastUsed.current !== null && body.usage.used > lastUsed.current) {
+      if (body.usage && lastUsed.current !== null && body.usage.used > lastUsed.current) {
         seq.current += 1;
         setLog(prev =>
           [
@@ -141,7 +145,7 @@ export function useLiveWindow(): LiveWindow {
         );
       }
       lastExpiry.current = body.expiresAt;
-      lastUsed.current = body.usage.used;
+      if (body.usage) lastUsed.current = body.usage.used;
     } catch (e) {
       failures.current += 1;
       if (failures.current >= 2) setError(`${e instanceof Error ? e.message : String(e)} — retrying`);

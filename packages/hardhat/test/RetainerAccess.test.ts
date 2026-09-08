@@ -129,6 +129,25 @@ describe("RetainerAccess", () => {
       expect(await c.revenue()).to.equal(0n);
     });
 
+    it("the resource server can open the subscription for an agent that paid off-chain", async () => {
+      // The agent signs one x402 payment and never touches the chain; the server forwards it.
+      await expect(c.connect(seller).subscribeFor(agent.address, { value: toWeibar(PRICE * 3n) }))
+        .to.emit(c, "SubscriptionStarted")
+        .and.to.emit(c, "RenewalScheduled");
+      expect(await c.hasAccess(agent.address)).to.equal(true);
+      const [balance] = await c.subscriptionOf(agent.address);
+      expect(balance).to.equal(PRICE * 2n); // 3 forwarded, 1 charged now
+    });
+
+    it("subscribeFor cannot spend an agent's existing balance without funding a period", async () => {
+      // Otherwise a stranger could open an unwanted subscription on the agent's money
+      // and burn a slot of the seller's gas reserve doing it.
+      await c.connect(stranger).creditFor(agent.address, { value: toWeibar(PRICE * 5n) });
+      await expect(
+        c.connect(stranger).subscribeFor(agent.address, { value: toWeibar(PRICE - 1n) }),
+      ).to.be.revertedWithCustomError(c, "InsufficientBalance");
+    });
+
     it("a credited agent can subscribe with no further payment", async () => {
       await c.connect(stranger).creditFor(agent.address, { value: toWeibar(PRICE * 2n) });
       await expect(c.connect(agent).subscribe()).to.emit(c, "SubscriptionStarted");

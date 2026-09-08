@@ -200,11 +200,32 @@ contract RetainerAccess is HederaScheduleService {
 
     /// @notice Start a self-renewing subscription on the seller's terms. Charges period one now.
     function subscribe() external payable {
-        Subscription storage s = _subs[msg.sender];
+        _subscribe(msg.sender, msg.value);
+    }
+
+    /**
+     * @notice Open a subscription on behalf of an agent that has just paid off-chain.
+     * @dev The resource server calls this after settling an x402 payment through the Blocky402
+     *      facilitator, forwarding what the agent paid. It is what lets an agent hold a
+     *      self-renewing subscription without ever signing an on-chain transaction: it signs
+     *      one x402 payment, and the network keeps the access alive from there.
+     *
+     *      The caller must fund at least one period themselves. That is what stops this being
+     *      a griefing vector — a stranger cannot burn an agent's existing balance or the
+     *      seller's gas reserve by opening a subscription the agent did not ask for; they can
+     *      only make one a gift.
+     */
+    function subscribeFor(address agent) external payable {
+        if (_toTinybar(msg.value) < pricePerPeriod) revert InsufficientBalance();
+        _subscribe(agent, msg.value);
+    }
+
+    function _subscribe(address agent, uint256 weibarValue) private {
+        Subscription storage s = _subs[agent];
         if (s.active) revert AlreadyActive();
         if (pricePerPeriod == 0 || periodSeconds == 0) revert TermsNotSet();
 
-        if (msg.value > 0) _credit(msg.sender, msg.value);
+        if (weibarValue > 0) _credit(agent, weibarValue);
         if (s.balance < pricePerPeriod) revert InsufficientBalance();
 
         s.pricePerPeriod = pricePerPeriod;
@@ -213,8 +234,8 @@ contract RetainerAccess is HederaScheduleService {
         s.expiresAt = block.timestamp + s.periodSeconds;
         s.active = true;
 
-        emit SubscriptionStarted(msg.sender, s.pricePerPeriod, s.periodSeconds, s.expiresAt);
-        _armRenewal(msg.sender, s, true);
+        emit SubscriptionStarted(agent, s.pricePerPeriod, s.periodSeconds, s.expiresAt);
+        _armRenewal(agent, s, true);
         _solvent();
     }
 

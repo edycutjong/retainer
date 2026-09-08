@@ -6,7 +6,13 @@ import {
 } from "@x402/core/http";
 import type { PaymentRequirements, ResourceInfo } from "@x402/core/types";
 import { getAddress, isAddress } from "viem";
-import { RetainerNotDeployedError, getRetainerAddress, hasAccess, subscriptionOf } from "~~/services/retainer/server";
+import {
+  RetainerNotDeployedError,
+  getRetainerAddress,
+  hasAccess,
+  openSubscriptionFor,
+  subscriptionOf,
+} from "~~/services/retainer/server";
 import {
   HBAR_ASSET,
   MAX_TIMEOUT_SECONDS,
@@ -42,8 +48,18 @@ export const dynamic = "force-dynamic";
 
 /** Where subscription payments go. The seller's Hedera account. */
 const PAY_TO = process.env.RETAINER_PAY_TO ?? "";
-/** Price of one period, in tinybar. */
-const PRICE_TINYBAR = process.env.RETAINER_PRICE_TINYBAR ?? "100000000";
+/** Price of one period, in tinybar. Must match the contract's own terms. */
+const PERIOD_PRICE_TINYBAR = BigInt(process.env.RETAINER_PRICE_TINYBAR ?? "100000000");
+/**
+ * How many periods one x402 payment buys.
+ *
+ * More than one on purpose. The first period is charged the moment the subscription opens;
+ * every period after it is charged by a renewal the network executes on its own. Selling a
+ * single period would mean the interesting thing never happens.
+ */
+const PERIODS_PER_PURCHASE = BigInt(process.env.RETAINER_PERIODS_PER_PURCHASE ?? "3");
+/** What the 402 actually charges. */
+const PRICE_TINYBAR = (PERIOD_PRICE_TINYBAR * PERIODS_PER_PURCHASE).toString();
 
 /**
  * Build the 402 challenge. The body the resource server produces is also what goes in the
@@ -169,6 +185,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Payment settlement failed", reason: settlement.errorReason }, { status: 402 });
   }
 
+  // ── Turn the settled payment into on-chain subscription state.
+  //
+  // This is the join. The agent signed one off-chain x402 payment; the seller received it and
+  // now forwards the same amount into RetainerAccess, which opens the subscription and arms
+  // the first scheduled renewal. From here the Hedera Schedule Service keeps the window alive
+  // and the agent never signs anything again — which is the entire product.
+  let subscriptionTx: string | undefined;
+  let subscriptionError: string | undefined;
+  try {
+    subscriptionTx = await openSubscriptionFor(agent, PERIOD_PRICE_TINYBAR * PERIODS_PER_PURCHASE);
+  } catch (error) {
+    // The payment is already captured, so the request is still served. Report the failure
+    // honestly rather than implying a subscription exists when it does not.
+    subscriptionError = error instanceof Error ? error.message : String(error);
+    console.error("[api/retainer/access] settled payment but failed to open subscription", error);
+  }
+
   const res = NextResponse.json({
     access: "granted",
     paidThisRequest: true,
@@ -178,7 +211,15 @@ export async function GET(req: Request) {
       payer: settlement.payer,
       network: settlement.network,
     },
-    nextStep: "Open a subscription with RetainerAccess.subscribe() so future requests need no payment at all.",
+    subscription: subscriptionTx
+      ? {
+          opened: true,
+          transaction: subscriptionTx,
+          periodsPurchased: Number(PERIODS_PER_PURCHASE),
+          why: "the settled payment was forwarded into RetainerAccess; the first renewal is scheduled",
+          nextStep: "Ask again after this window expires. It will still be 200, and nothing will have been paid.",
+        }
+      : { opened: false, error: subscriptionError },
     resource: { message: "This is the protected resource." },
   });
   res.headers.set("PAYMENT-RESPONSE", encodePaymentResponseHeader(settlement));

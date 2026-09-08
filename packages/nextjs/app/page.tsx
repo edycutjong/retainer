@@ -16,6 +16,7 @@ import {
 } from "~~/components/landing/recordedRun";
 import { DEMO_AGENT, ZERO, hbar, useLiveWindow } from "~~/components/landing/useLiveWindow";
 import { useReveal } from "~~/components/landing/useReveal";
+import { APP_VERSION } from "~~/utils/version";
 
 /**
  * The landing page, which is also the live view.
@@ -32,7 +33,6 @@ import { useReveal } from "~~/components/landing/useReveal";
  */
 
 const REPO = "https://github.com/edycutjong/retainer";
-const VERSION = "v0.0.0-dev";
 
 const Home: NextPage = () => {
   const live = useLiveWindow();
@@ -529,7 +529,7 @@ const Home: NextPage = () => {
             </a>
           </div>
           <p className="rt-mono-ui mt-2" style={{ color: "var(--rt-text-low)" }}>
-            contract {CURRENT_CONTRACT.id} · retainer.edycu.dev · {VERSION}
+            contract {CURRENT_CONTRACT.id} · retainer.edycu.dev · {APP_VERSION}
           </p>
         </div>
       </section>

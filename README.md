@@ -19,7 +19,7 @@ Hedera Schedule Service extends by itself.</p>
 [![Live Contract](https://img.shields.io/badge/⛓️_HashScan-0.0.10415845-8b5cf6?style=for-the-badge)](https://hashscan.io/testnet/contract/0.0.10415845)
 [![Built for ETHOnline 2026](https://img.shields.io/badge/ETHGlobal-ETHOnline_2026-1f6feb?style=for-the-badge)](https://ethglobal.com/events/ethonline2026)
 [![For judges](https://img.shields.io/badge/⚖️_For-Judges-f59e0b?style=for-the-badge)](https://retainer.edycu.dev/judge)
-[![Version](https://img.shields.io/badge/version-v0.0.0--dev-8259ef?style=for-the-badge)](https://github.com/edycutjong/retainer/commits/main)
+[![Release](https://img.shields.io/github/v/release/edycutjong/retainer?style=for-the-badge&color=8259ef&label=release)](https://github.com/edycutjong/retainer/releases/latest)
 
 <br/>
 

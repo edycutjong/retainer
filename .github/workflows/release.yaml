@@ -1,0 +1,35 @@
+name: release
+
+# A pushed `v*` tag is the trigger. `yarn release:<patch|minor|major>` creates that tag in the
+# same commit that bumps the manifests, so the Release, the tag, the package version and the
+# version rendered on the landing page and the deck are one fact rather than four.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the tag matches the version in the manifest
+        run: |
+          MANIFEST="v$(node -p "require('./package.json').version")"
+          if [ "$MANIFEST" != "${GITHUB_REF_NAME}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match package.json ${MANIFEST}" >&2
+            exit 1
+          fi
+          echo "${GITHUB_REF_NAME} matches the manifest"
+
+      - name: Create the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true

@@ -7,9 +7,17 @@ const { ProvidePlugin } = nodeRequire("webpack") as {
   ProvidePlugin: new (definitions: Record<string, string[]>) => unknown;
 };
 
+// The version has exactly one source of truth: the root package.json, bumped by `yarn release:*`
+// and tagged in the same commit. Reading it here means the footer, /judge and the deck stamp can
+// never disagree with the git tag the GitHub Release was cut from.
+const { version } = nodeRequire("../../package.json") as { version: string };
+
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../.."),
   reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_APP_VERSION: version,
+  },
   devIndicators: false,
   transpilePackages: ["@hashgraph/hedera-wallet-connect", "@scaffold-hbar-ui/components"],
   typescript: {

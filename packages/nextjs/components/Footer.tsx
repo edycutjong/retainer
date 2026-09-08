@@ -2,12 +2,10 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { SwitchTheme } from "~~/components/SwitchTheme";
+import { APP_VERSION, RELEASE_URL } from "~~/utils/version";
 
 const REPO = "https://github.com/edycutjong/retainer";
 const CONTRACT_ID = "0.0.10415845";
-/** No git tag exists yet; `git describe --tags --abbrev=0` has nothing to say, so this says so. */
-const VERSION = "v0.0.0-dev";
-
 /**
  * Site footer.
  *
@@ -27,7 +25,9 @@ export const Footer = () => {
             </Link>
             <p className="mt-3 max-w-xs">Your agent&rsquo;s access renews itself on-chain at 3am, with nobody awake.</p>
             <p className="mt-3 rt-mono-ui">
-              <span className="rt-tag">{VERSION}</span>
+              <a className="rt-tag" href={RELEASE_URL} target="_blank" rel="noreferrer">
+                {APP_VERSION}
+              </a>
             </p>
           </div>
           <nav aria-labelledby="f-product">
@@ -43,9 +43,6 @@ export const Footer = () => {
                 <a href={`https://hashscan.io/testnet/contract/${CONTRACT_ID}`} target="_blank" rel="noreferrer">
                   Contract on HashScan · <span className="rt-mono">{CONTRACT_ID}</span>
                 </a>
-              </li>
-              <li>
-                <Link href="/debug">Debug the contract</Link>
               </li>
             </ul>
           </nav>

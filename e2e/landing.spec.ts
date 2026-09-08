@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { version } from "../package.json";
 
 /**
  * The landing page's structure, asserted at the level a judge experiences it.
@@ -107,9 +108,59 @@ test.describe("/ — the landing page a cold visitor gets", () => {
     await page.goto("/");
     await expect(page.locator("header")).toHaveCount(1);
     await expect(page.locator("footer")).toHaveCount(1);
-    await expect(page.locator("footer").getByText("v0.0.0-dev")).toBeVisible();
+    // Read from the manifest rather than hard-coding: `yarn release:*` bumps that file and tags
+    // the same commit, so pinning a literal here would fail every release for the wrong reason.
+    await expect(
+      page.locator("footer").getByText(`v${version}`, { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Open /judge" }),
     ).toHaveAttribute("href", "/judge");
+  });
+});
+
+/**
+ * The dead-link guard.
+ *
+ * The header's "Contract" item and a footer entry both pointed at `/debug`, a route whose page
+ * called `notFound()` unconditionally — so the nav promised a contract and served a 404. No test
+ * caught it, and an HTTP-status sweep would not have either: Next serves the not-found body for
+ * an in-app `notFound()` without the link itself ever looking broken.
+ *
+ * So this asserts what a visitor actually experiences — the destination is not the 404 page —
+ * rather than that the request succeeded.
+ */
+test.describe("navigation goes where it says", () => {
+  test("no header or footer link lands on the not-found page", async ({ page }) => {
+    await page.goto("/");
+    // The shell is client-rendered, so the nav does not exist on first paint and `evaluateAll`
+    // does not auto-wait the way a normal locator assertion does.
+    await expect(page.locator("footer a").first()).toBeAttached();
+
+    const hrefs = await page
+      .locator("header a, footer a")
+      .evaluateAll(nodes =>
+        nodes
+          .map(n => n.getAttribute("href") ?? "")
+          // In-app routes only; external destinations are somebody else's uptime.
+          .filter(h => h.startsWith("/") && !h.startsWith("/#")),
+      );
+
+    expect(hrefs.length, "expected some in-app nav links to check").toBeGreaterThan(0);
+
+    for (const href of new Set(hrefs)) {
+      await page.goto(href);
+      // Wait for the destination to actually render something first. `toHaveCount(0)` is
+      // satisfied instantly by an empty DOM, so asserting it against the un-hydrated shell
+      // would pass for every route including the broken ones — which is how the /debug link
+      // survived a full QA pass in the first place.
+      await expect(page.locator("h1, h2").first()).toBeVisible();
+      // Anchored on the not-found page's own heading. A bare /404/ would false-positive: real
+      // consensus timestamps on /judge contain "404".
+      await expect(
+        page.getByRole("heading", { name: "Page Not Found" }),
+        `${href} renders the not-found page`,
+      ).toHaveCount(0);
+    }
   });
 });

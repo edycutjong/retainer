@@ -8,31 +8,43 @@ import { Bars3Icon } from "@heroicons/react/24/outline";
 import { WalletConnectButton } from "~~/components/scaffold-hbar";
 import { useOutsideClick } from "~~/hooks/scaffold-hbar";
 
-type HeaderMenuLink = { label: string; href: string; path: string };
+type HeaderMenuLink = { label: string; href: string; path: string; external?: boolean };
+
+const CONTRACT_ID = "0.0.10415845";
 
 /**
  * Section navigation. `path` is what "current page" is matched against; hash links share the
  * landing page's path, so only the page itself is ever marked current.
+ *
+ * "Contract" goes straight to HashScan rather than to an in-app route: the template's `/debug`
+ * explorer is disabled in this build (it calls `notFound()`), so a nav item pointing at it
+ * promised a contract and delivered a 404.
  */
 export const menuLinks: HeaderMenuLink[] = [
   { label: "How it works", href: "/#how", path: "/" },
   { label: "Live view", href: "/#live", path: "/" },
   { label: "Proof", href: "/#proof", path: "/" },
   { label: "For judges", href: "/judge", path: "/judge" },
-  { label: "Contract", href: "/debug", path: "/debug" },
+  { label: "Contract", href: `https://hashscan.io/testnet/contract/${CONTRACT_ID}`, path: "", external: true },
 ];
 
 const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => {
   const pathname = usePathname();
   return (
     <>
-      {menuLinks.map(({ label, href, path }) => {
+      {menuLinks.map(({ label, href, path, external }) => {
         const isPage = pathname === path && !href.includes("#");
         return (
           <li key={href}>
-            <Link href={href} aria-current={isPage ? "page" : undefined} onClick={onNavigate}>
-              {label}
-            </Link>
+            {external ? (
+              <a href={href} target="_blank" rel="noreferrer" onClick={onNavigate}>
+                {label}
+              </a>
+            ) : (
+              <Link href={href} aria-current={isPage ? "page" : undefined} onClick={onNavigate}>
+                {label}
+              </Link>
+            )}
           </li>
         );
       })}

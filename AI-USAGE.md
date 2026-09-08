@@ -27,7 +27,7 @@ the AI are in this repository:
 - `specs/` — `architecture.md`, `provenance.md`
 - `prompts/` — one file per build step, indexed in `prompts/README.md`, which states plainly
   that those files are reconstructed from the commit history rather than a keystroke log
-- the commit history itself — the ten build commits indexed in `prompts/README.md`, each one a
+- the commit history itself — the build commits indexed in `prompts/README.md`, each one a
   step or a correction. It is the highest fidelity record here and every claim below names the
   commit it can be checked against.
 
@@ -64,6 +64,9 @@ Everything else in the tree is either the template's (see
 | `packages/nextjs/components/Header.tsx`, `components/Footer.tsx` | Rewritten: product mark, section nav, skip link, real footer with version stamp and provenance | The version string is `v0.0.0-dev` because no tag exists; the footer must say where the template came from | — |
 | `packages/nextjs/app/judge/judge.module.css` | Colour and type values brought into the same family | Stays a self-contained module on purpose, so `/judge` cannot break when the product's system changes | — |
 | `e2e/landing.spec.ts` (6 tests) | The landing page's structure, asserted at the level a judge experiences it | Must not depend on the chain answering | — |
+| `app/api/retainer/status/route.ts` (partial reads, step 13) | `Promise.allSettled` over the three contract reads; auxiliary failures become `null` + `unavailable` | The window state must return even when the relay refuses an auxiliary view read; nothing may be invented for a field the chain did not answer | Verified against the local `.env` misconfiguration that used to 502 |
+| `components/landing/recordedRun.ts`, `app/page.tsx`, `app/judge/page.tsx`, `JUDGE.md`, `docs/proof.md`, `README.md`, `RUNBOOK.md`, `specs/architecture.md`, `docs/gas-economics.md` (truth correction, step 13) | The corrected receipts: 19 renewals across three deployments, the current deployment's eight-renewal chain, the reverted scheduled call, the corrected x402 settlement | Every number re-derived from the mirror node by `entity_id`, `scheduled`, `result` and `charged_tx_fee` before it was written; a claim that did not resolve was removed, not softened | The misattribution was found by resolving the HashScan link a judge would click, not by reading the docs. Prompt `prompts/13-audit-the-claims-against-the-chain.md` |
+| `app/layout.tsx`, `styles/globals.css` (font policy, step 13) | Montserrat via `next/font/google`; the remote Styrene A Web face removed | CLS on `/judge` had to reach 0 without adding a face the other surfaces do not use | Measured with a `PerformanceObserver` probe and Lighthouse before and after |
 
 ### Diagnostics and proof scripts
 

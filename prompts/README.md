@@ -38,6 +38,7 @@ would remove the only interesting thing about that pair.
 | `10-strip-the-template-product.md` | Remove the template's marketplace, ship Retainer's surface | `c939840` |
 | `11-units-measured-not-assumed.md` | Measure Hedera's value units on testnet; reverse step 08's conversion | `9eb39e3` |
 | `12-the-landing-page-as-an-instrument.md` | Design spec first, then rebuild the landing page around the moment the ring closes | the landing-page series after `9c7d416` |
+| `13-audit-the-claims-against-the-chain.md` | Adversarial QA: every number re-checked against the mirror node by `entity_id`; the misattributed renewal corrected everywhere, the reverted scheduled call disclosed, the 502 and the CLS fixed | the QA series after `4244f63` |
 
 ## What is deliberately not in here
 

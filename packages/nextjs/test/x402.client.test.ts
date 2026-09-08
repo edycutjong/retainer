@@ -191,9 +191,9 @@ describe("payAndGetDownloadUrl — the 402 retry loop", () => {
     fetchMock.mockResolvedValueOnce(challenge());
     fetchMock.mockResolvedValueOnce(jsonResponse({ url: "https://files.example/report.pdf" }));
     x402.httpClient.processResponse.mockResolvedValueOnce({
-      kind: "success",
+      paymentStatus: "settled",
       body: { url: "https://files.example/report.pdf" },
-      settleResponse: { transaction: "0.0.1001@1757280000.000000000", payer: ACCOUNT },
+      header: { transaction: "0.0.1001@1757280000.000000000", payer: ACCOUNT },
     });
     const { payAndGetDownloadUrl } = await loadClient();
 
@@ -219,9 +219,9 @@ describe("payAndGetDownloadUrl — the 402 retry loop", () => {
     fetchMock.mockResolvedValueOnce(withHeader);
     fetchMock.mockResolvedValueOnce(jsonResponse({ url: "https://files.example/report.pdf" }));
     x402.httpClient.processResponse.mockResolvedValueOnce({
-      kind: "success",
+      paymentStatus: "settled",
       body: { url: "https://files.example/report.pdf" },
-      settleResponse: {},
+      header: {},
     });
     const { payAndGetDownloadUrl } = await loadClient();
 
@@ -237,9 +237,9 @@ describe("payAndGetDownloadUrl — the 402 retry loop", () => {
     fetchMock.mockResolvedValueOnce(brokenResponse(402));
     fetchMock.mockResolvedValueOnce(jsonResponse({ url: "https://files.example/report.pdf" }));
     x402.httpClient.processResponse.mockResolvedValueOnce({
-      kind: "success",
+      paymentStatus: "settled",
       body: { url: "https://files.example/report.pdf" },
-      settleResponse: {},
+      header: {},
     });
     const { payAndGetDownloadUrl } = await loadClient();
 
@@ -253,9 +253,9 @@ describe("payAndGetDownloadUrl — the 402 retry loop", () => {
     fetchMock.mockResolvedValueOnce(challenge());
     fetchMock.mockResolvedValueOnce(jsonResponse({}));
     x402.httpClient.processResponse.mockResolvedValueOnce({
-      kind: "success",
+      paymentStatus: "settled",
       body: {},
-      settleResponse: { transaction: "0.0.1@1.0" },
+      header: { transaction: "0.0.1@1.0" },
     });
     const { payAndGetDownloadUrl } = await loadClient();
 
@@ -272,8 +272,8 @@ describe("payAndGetDownloadUrl — every failure arm of processResponse becomes 
 
   it("reports the facilitator's stated reason when settlement fails", async () => {
     x402.httpClient.processResponse.mockResolvedValueOnce({
-      kind: "settle_failed",
-      settleResponse: { errorReason: "insufficient_funds" },
+      paymentStatus: "settle_failed",
+      header: { errorReason: "insufficient_funds" },
     });
     const { payAndGetDownloadUrl } = await loadClient();
 
@@ -283,7 +283,7 @@ describe("payAndGetDownloadUrl — every failure arm of processResponse becomes 
   });
 
   it("says 'unknown' rather than 'undefined' when settlement fails without a reason", async () => {
-    x402.httpClient.processResponse.mockResolvedValueOnce({ kind: "settle_failed", settleResponse: {} });
+    x402.httpClient.processResponse.mockResolvedValueOnce({ paymentStatus: "settle_failed", header: {} });
     const { payAndGetDownloadUrl } = await loadClient();
 
     await expect(payAndGetDownloadUrl({ resourceUrl: RESOURCE, hederaAccountId: ACCOUNT })).rejects.toThrow(
@@ -293,8 +293,8 @@ describe("payAndGetDownloadUrl — every failure arm of processResponse becomes 
 
   it("surfaces the server's reason when the retry is challenged again", async () => {
     x402.httpClient.processResponse.mockResolvedValueOnce({
-      kind: "payment_required",
-      paymentRequired: { error: "Payment does not match requirements" },
+      paymentStatus: "payment_required",
+      header: { error: "Payment does not match requirements" },
     });
     const { payAndGetDownloadUrl } = await loadClient();
 
@@ -304,7 +304,7 @@ describe("payAndGetDownloadUrl — every failure arm of processResponse becomes 
   });
 
   it("falls back to a plain rejection message when a repeat challenge carries no reason", async () => {
-    x402.httpClient.processResponse.mockResolvedValueOnce({ kind: "payment_required", paymentRequired: {} });
+    x402.httpClient.processResponse.mockResolvedValueOnce({ paymentStatus: "payment_required", header: {} });
     const { payAndGetDownloadUrl } = await loadClient();
 
     await expect(payAndGetDownloadUrl({ resourceUrl: RESOURCE, hederaAccountId: ACCOUNT })).rejects.toThrow(
@@ -314,7 +314,7 @@ describe("payAndGetDownloadUrl — every failure arm of processResponse becomes 
 
   it("surfaces the body's error for a generic failure arm", async () => {
     x402.httpClient.processResponse.mockResolvedValueOnce({
-      kind: "error",
+      paymentStatus: "none",
       status: 500,
       body: { error: "Upstream data feed unavailable" },
     });
@@ -326,7 +326,7 @@ describe("payAndGetDownloadUrl — every failure arm of processResponse becomes 
   });
 
   it("falls back to the status code when the generic failure arm has no error in its body", async () => {
-    x402.httpClient.processResponse.mockResolvedValueOnce({ kind: "error", status: 504, body: {} });
+    x402.httpClient.processResponse.mockResolvedValueOnce({ paymentStatus: "none", status: 504, body: {} });
     const { payAndGetDownloadUrl } = await loadClient();
 
     await expect(payAndGetDownloadUrl({ resourceUrl: RESOURCE, hederaAccountId: ACCOUNT })).rejects.toThrow(
@@ -334,12 +334,12 @@ describe("payAndGetDownloadUrl — every failure arm of processResponse becomes 
     );
   });
 
-  it("refuses to guess when the client returns a kind this code has never heard of", async () => {
-    x402.httpClient.processResponse.mockResolvedValueOnce({ kind: "something_new" });
+  it("refuses to guess when the client returns a payment status this code has never heard of", async () => {
+    x402.httpClient.processResponse.mockResolvedValueOnce({ paymentStatus: "something_new", status: 502, body: {} });
     const { payAndGetDownloadUrl } = await loadClient();
 
     await expect(payAndGetDownloadUrl({ resourceUrl: RESOURCE, hederaAccountId: ACCOUNT })).rejects.toThrow(
-      "Unexpected response from server",
+      "Download failed with status 502",
     );
   });
 });

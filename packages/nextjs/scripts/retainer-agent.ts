@@ -114,9 +114,10 @@ async function main() {
     .json()
     .catch(() => ({}));
   const result = await http.processResponse(paid);
-  if (result.kind !== "success") throw new Error(`payment failed: ${result.kind}`);
-  console.log(`  ✅ settled · tx ${result.settleResponse.transaction}`);
-  console.log(`  https://hashscan.io/testnet/transaction/${result.settleResponse.transaction}`);
+  if (result.paymentStatus !== "settled") throw new Error(`payment failed: ${result.paymentStatus}`);
+  const settle = result.header as { transaction: string };
+  console.log(`  ✅ settled · tx ${settle.transaction}`);
+  console.log(`  https://hashscan.io/testnet/transaction/${settle.transaction}`);
 
   // ── 3. the self-renewing subscription
   //

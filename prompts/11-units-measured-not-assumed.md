@@ -46,7 +46,7 @@ everything is already **tinybar**. A contract on Hedera should do no conversion 
   so a payable constructor never sees it. That is the 8-HBAR symptom above, explained
 - tests 38 → 40
 
-Proven end to end on testnet against contract `0.0.10414167`: the network renewed a
+Proven end to end on testnet against contract `0.0.10415845`: the network renewed a
 subscription with no transaction from us, and `cancel()` refunded exactly 1 HBAR where the
 pre-fix code would have paid `1e-10` of it.
 

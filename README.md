@@ -1,9 +1,36 @@
-# Retainer
+<div align="center">
 
-**Your agent's access renews itself on-chain at 3am, with nobody awake.**
+<!-- ASSET TODO: icon not produced yet — add <img src="docs/icon.svg" alt="Retainer Icon" width="144"> here once it exists -->
 
-An x402-gated resource on Hedera whose access window is an on-chain subscription that the
-Hedera Schedule Service extends by itself.
+<h1>Retainer 🔁</h1>
+
+<p><em>Your agent's access renews itself on-chain at 3am, with nobody awake.</em></p>
+
+<!-- ASSET TODO: hero image not produced yet — add <img src="docs/readme-hero.png" alt="Retainer — your agent's access renews itself on-chain" width="100%"> here once it exists -->
+
+<p>An x402-gated resource on Hedera whose access window is an on-chain subscription that the
+Hedera Schedule Service extends by itself.</p>
+
+<br/>
+
+[![Live Demo](https://img.shields.io/badge/🚀_Live-Demo-06b6d4?style=for-the-badge)](https://retainer-plum.vercel.app)
+[![Live Contract](https://img.shields.io/badge/⛓️_HashScan-0.0.10415845-8b5cf6?style=for-the-badge)](https://hashscan.io/testnet/contract/0.0.10415845)
+[![Built for ETHOnline 2026](https://img.shields.io/badge/ETHGlobal-ETHOnline_2026-1f6feb?style=for-the-badge)](https://ethglobal.com/events/ethonline2026)
+
+<br/>
+
+![Next.js](https://img.shields.io/badge/Next.js_15-black?style=flat&logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
+![Solidity](https://img.shields.io/badge/Solidity_0.8.28-363636?style=flat&logo=solidity&logoColor=white)
+![Hardhat](https://img.shields.io/badge/Hardhat-FFF100?style=flat&logo=hardhat&logoColor=black)
+![Hedera](https://img.shields.io/badge/Hedera-testnet-000000?style=flat&logo=hedera&logoColor=white)
+![x402](https://img.shields.io/badge/x402-exact_scheme-06b6d4?style=flat)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/edycutjong/retainer/actions/workflows/lint.yaml/badge.svg)](https://github.com/edycutjong/retainer/actions/workflows/lint.yaml)
+
+</div>
+
+---
 
 **Live:** <https://retainer-plum.vercel.app> · try the gate yourself:
 
@@ -16,13 +43,15 @@ curl -i "https://retainer-plum.vercel.app/api/retainer/access?agent=0x0000000000
 curl -s "https://retainer-plum.vercel.app/api/retainer/status?agent=0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66"
 ```
 
-## The problem
+## 💡 The Problem & Solution
+
+### The Problem
 
 An agent can pay for a thing. An agent cannot *subscribe* to a thing, because every renewal
 needs somebody awake to re-authorise it — a human clicking, or a cron job someone has to
 operate and keep alive. Retainer removes that person.
 
-## What actually happens
+### The Solution — what actually happens
 
 A walkthrough you can follow against the running server. The agent's address is passed as
 `?agent=0x…`; the only thing it ever signs is the payment in step 2.
@@ -91,10 +120,21 @@ renewals.
 the chain and nothing else, so a UI can poll it without repeatedly opening payment challenges.
 The page at `/` uses it to show the window counting down and then jumping back up on its own.
 
-## Architecture
+## 🏗️ Architecture & Tech Stack
 
 Two rails. The payment rail is off-chain HTTP that settles on Hedera; the renewal rail is
 purely on-chain. They join in exactly one place: `subscribeFor()`.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/architecture-light.svg">
+    <img alt="Retainer architecture: a payment rail that settles once through Blocky402 on Hedera, joined by subscribeFor to a renewal rail where the Hedera Schedule Service calls renew on the contract unattended." src="docs/architecture-light.svg" width="100%">
+  </picture>
+</p>
+
+<details>
+<summary>Same diagram as plain text</summary>
 
 ```
   PAYMENT RAIL (once, at the start)
@@ -142,6 +182,61 @@ purely on-chain. They join in exactly one place: `subscribeFor()`.
    Later requests ask one on-chain question: hasAccess(agent) → 200, nothing paid.
 ```
 
+</details>
+
+### Tech stack
+
+| Layer | What |
+|---|---|
+| Resource server | Next.js 15 (App Router) + TypeScript — `packages/nextjs` |
+| Payment | x402 `exact` scheme (`@x402/core`, `@x402/hedera`), settled by the hosted Blocky402 facilitator |
+| Contract | Solidity 0.8.28, Hardhat — `packages/hardhat` |
+| Self-renewal | Hedera Schedule Service (HIP-1215), system contract `0x16b` |
+| Chain | Hedera testnet — JSON-RPC via Hashio, artifacts re-verified against the public mirror node |
+| Chain client | ethers v6 |
+
+### What is actually being sold
+
+A subscription to nothing is not a product, so the gated resource is a real metered data feed,
+not a constant string.
+
+It serves the **live HBAR/USD rate the Hedera network itself uses**, read from the mirror node
+(`/api/v1/network/exchangerate`). That rate is not a third-party quote — it is the number the
+network applies when converting its USD-denominated fee schedule into tinybar, which is what
+makes Hedera fees predictable and sub-cent. An agent metering this feed is reading the same
+number that priced its own transaction.
+
+**The charge is metered, not flat.** A period does not buy unlimited use; it buys a countable
+quantity of calls (`callsPerPeriod`). Every served call is counted **on-chain** by
+`meter(agent)` before the response goes out, so the tally is auditable by the buyer rather than
+asserted by the seller. Spend the allowance and the route answers `429` — the window is still
+open, but what the period bought is used up.
+
+And this is where the two halves meet: **the unattended renewal refills the meter.** The same
+scheduled call that extends the access window resets `callsUsed` to zero. That is what makes a
+self-renewing subscription worth having rather than a novelty.
+
+```jsonc
+{
+  "access": "granted",
+  "paidThisRequest": false,
+  "metering": {
+    "callsRemainingThisPeriod": 3,
+    "recordedOnChain": "0x…"          // one Hedera transaction per served call
+  },
+  "resource": {
+    "pair": "HBAR/USD",
+    "rate": 0.08258,
+    "raw": { "centEquivalent": 247738, "hbarEquivalent": 30000 },
+    "source": "https://testnet.mirrornode.hedera.com/api/v1/network/exchangerate"
+  }
+}
+```
+
+Metering each call on-chain costs one transaction per request, which is only reasonable because
+Hedera fees are sub-cent. On a chain with real gas this design would be indefensible, and that
+tradeoff is the honest reason it is written this way here rather than kept in a database.
+
 ### Money is kept in three pots
 
 `RetainerAccess` never mixes whose money is whose, and `_solvent()` asserts the contract's
@@ -164,7 +259,7 @@ looks like a successful transaction. This was settled by measurement, not by rea
 `packages/hardhat/contracts/test/UnitProbe.sol` was deployed to testnet, sent 2 HBAR as 2e18 on
 the wire, and reported `msg.value == 200000000`.
 
-### Hedera Schedule Service integration
+## 🏆 Hedera Schedule Service Integration
 
 Three methods from `HederaScheduleService` (HIP-1215, system contract `0x16b`), all
 load-bearing — remove any one and the product breaks rather than degrades:
@@ -188,13 +283,13 @@ Two details that only show up on a real network:
   cannot pay for itself fails with `INSUFFICIENT_PAYER_BALANCE` and emits nothing at all — the
   subscription would otherwise look alive forever while being dead.
 
-## Proof on Hedera testnet
+## ⛓️ Live Deployment — proof on Hedera testnet
 
 There are two deployments on testnet, and they are not interchangeable:
 
 | | Contract | What it is |
 |---|---|---|
-| **Current** | `0.0.10414167` / `0xd3A218AD4c817B14Cc754e4c996A95435155a27B` · [HashScan](https://hashscan.io/testnet/contract/0.0.10414167) | `RetainerAccess.sol` as it stands in this repo. It is what `packages/nextjs/contracts/deployedContracts.ts` points at, so it is the contract the resource server talks to. |
+| **Current** | `0.0.10415845` / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` · [HashScan](https://hashscan.io/testnet/contract/0.0.10415845) | `RetainerAccess.sol` as it stands in this repo. It is what `packages/nextjs/contracts/deployedContracts.ts` points at, so it is the contract the resource server talks to. |
 | **First** | `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A` · [HashScan](https://hashscan.io/testnet/contract/0.0.10406083) | The deployment that produced every gas and fee measurement below. It predates the current constructor and ABI, so do not read it as a copy of the current source. |
 
 On the current deployment, one renewal has already executed unattended — `CONTRACTCALL`,
@@ -218,7 +313,7 @@ of them:
 
 Gas used on testnet: `subscribe()` **1,582,554** (limit 2,000,000), deploy **968,564**.
 
-## Gas economics — the honest part
+## 📊 Engineering Rigor — gas economics, the honest part
 
 The third row above is the whole cost story, and it is the most interesting thing this build
 measured. A renewal that re-arms the next one costs **1.54896 HBAR**. A renewal that does not
@@ -263,15 +358,19 @@ carrying its own reason string — `"balance will not cover the next period"`,
 the first four are asserted by name in the test suite. A subscriber who cancels is a separate
 event, `Cancelled`: an ending they chose, not one that surprised them.
 
-## Setup
+## 🚀 Getting Started
 
 No Docker, no object storage, no self-hosted facilitator. Settlement uses the hosted Blocky402
 testnet facilitator, which supplies its own fee payer.
 
-**Prerequisites:** Node.js ≥ 20.18.3 (Node 20 LTS), Yarn 3 via Corepack
+### Prerequisites
+
+Node.js ≥ 20.18.3 (Node 20 LTS), Yarn 3 via Corepack
 (`corepack enable && corepack prepare yarn@stable --activate`), and a funded **ECDSA** Hedera
 testnet account from the [Hedera Portal](https://portal.hedera.com/) faucet. ECDSA is required
 — x402 on Hedera will not work with an ED25519 key.
+
+### Installation
 
 ```bash
 git clone https://github.com/edycutjong/retainer.git
@@ -279,7 +378,7 @@ cd retainer
 yarn install
 ```
 
-**1. Contract keys and compile**
+### 1. Contract keys and compile
 
 ```bash
 cp packages/hardhat/.env.example packages/hardhat/.env
@@ -290,7 +389,7 @@ yarn hardhat:test
 
 Fund the printed deployer account with testnet HBAR before deploying.
 
-**2. Deploy `RetainerAccess`**
+### 2. Deploy `RetainerAccess`
 
 ```bash
 RETAINER_PRICE_TINYBAR=100000000 \
@@ -307,7 +406,7 @@ The script writes the address and native `0.0.x` contract id into
 `packages/nextjs/contracts/deployedContracts.ts`, which the resource server reads
 automatically.
 
-**3. Resource server**
+### 3. Resource server
 
 ```bash
 cp packages/nextjs/.env.example packages/nextjs/.env
@@ -337,7 +436,7 @@ yarn next:dev
 - `http://localhost:3000/api/retainer/access?agent=0x…` — the gate.
 - `http://localhost:3000/api/retainer/status?agent=0x…` — read-only state, safe to poll.
 
-**4. Run the agent end to end**
+### 4. Run the agent end to end
 
 `packages/nextjs/scripts/retainer-agent.ts` is the demo as an agent experiences it: cold
 request → 402 → pay via x402 → the server forwards that settled payment into `subscribeFor` →
@@ -362,7 +461,7 @@ periods, then *sends nothing* and re-reads `subscriptionOf` to show the window e
 own. It then cancels and compares the refund against the wallet balance, which is the
 regression guard for the tinybar/weibar bug.
 
-## Tests
+## 🧪 Testing & CI
 
 ```bash
 yarn hardhat:test
@@ -376,24 +475,10 @@ the three money pots, lapsing loudly in every failure case, and the access gate 
 `MockScheduleService.sol` stands in for the `0x16b` system contract locally — which is exactly
 why local gas numbers understate the real cost, as measured above.
 
-## Provenance
+`.github/workflows/lint.yaml` runs the same suite on every push and pull request to `main`,
+alongside the contract compile, both lint passes and the TypeScript type check.
 
-This repository was built from **[hedera-dev/scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar)**,
-branch `templates/x402-pay-per-use` — the starter template Hedera's own bounty page lists as
-official. Saying so plainly is the point: it is permitted, and hiding it would read far worse.
-
-The template's own product — a MinIO-backed pay-per-download file marketplace with a
-`FileRegistry` contract, a block explorer, `docker-compose`, and a self-hosted facilitator —
-has been **removed**. What remains from it is the Hedera wallet/RPC plumbing, the Hardhat
-setup, and the x402 client/server wiring. `RetainerAccess.sol`, both API routes, the retainer
-service layer, the live view, the agent script, and the tests are this project's own.
-
-Full file-by-file accounting, including a correction to an earlier overstatement, is in
-[`specs/provenance.md`](specs/provenance.md). AI attribution per file is in
-[`AI-USAGE.md`](AI-USAGE.md); the prompts that directed the build are in
-[`prompts/`](prompts/).
-
-## Repo layout
+## 📁 Project Structure
 
 ```
 packages/hardhat/
@@ -418,7 +503,24 @@ docs/proof.md                           every on-chain artifact, and how to re-v
 docs/gas-economics.md                   what an unattended renewal actually costs
 ```
 
-## Licence
+## 📄 License
 
 MIT — see [`LICENCE`](LICENCE). The file retains the original copyright line from the
 scaffold-hbar template it was inherited from.
+
+## 🙏 Acknowledgments — provenance
+
+This repository was built from **[hedera-dev/scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar)**,
+branch `templates/x402-pay-per-use` — the starter template Hedera's own bounty page lists as
+official. Saying so plainly is the point: it is permitted, and hiding it would read far worse.
+
+The template's own product — a MinIO-backed pay-per-download file marketplace with a
+`FileRegistry` contract, a block explorer, `docker-compose`, and a self-hosted facilitator —
+has been **removed**. What remains from it is the Hedera wallet/RPC plumbing, the Hardhat
+setup, and the x402 client/server wiring. `RetainerAccess.sol`, both API routes, the retainer
+service layer, the live view, the agent script, and the tests are this project's own.
+
+Full file-by-file accounting, including a correction to an earlier overstatement, is in
+[`specs/provenance.md`](specs/provenance.md). AI attribution per file is in
+[`AI-USAGE.md`](AI-USAGE.md); the prompts that directed the build are in
+[`prompts/`](prompts/).

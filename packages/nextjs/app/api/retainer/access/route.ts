@@ -6,10 +6,12 @@ import {
 } from "@x402/core/http";
 import type { PaymentRequirements, ResourceInfo } from "@x402/core/types";
 import { getAddress, isAddress } from "viem";
+import { getQuote } from "~~/services/feed/hedera";
 import {
   RetainerNotDeployedError,
   getRetainerAddress,
   hasAccess,
+  meterCall,
   openSubscriptionFor,
   subscriptionOf,
 } from "~~/services/retainer/server";
@@ -106,6 +108,43 @@ export async function GET(req: Request) {
   // This is the whole point. No 402, no signature, no human — the subscription
   // extended itself while nobody was watching.
   if (open) {
+    // Count the call against the agent's on-chain allowance BEFORE serving. A period buys a
+    // countable quantity of the feed, not an unlimited licence, and the count lives on-chain so
+    // the buyer can audit it rather than trust the seller's tally.
+    let metered;
+    try {
+      metered = await meterCall(agent);
+    } catch (error) {
+      // The window is open but what the period bought is spent. That is not a new payment —
+      // the next unattended renewal refills the meter.
+      const message = error instanceof Error ? error.message : String(error);
+      const exhausted = /QuotaExhausted/.test(message);
+      return NextResponse.json(
+        {
+          access: exhausted ? "quota exhausted" : "error",
+          paidThisRequest: false,
+          why: exhausted
+            ? "the calls this period bought are used up; the next scheduled renewal refills the allowance"
+            : "could not record the metered call",
+          subscription: {
+            expiresAt: Number(sub.expiresAt),
+            secondsRemaining: Math.max(0, Number(sub.expiresAt) - Math.floor(Date.now() / 1000)),
+            nextRenewalSchedule: sub.schedule,
+          },
+          detail: exhausted ? undefined : message,
+        },
+        { status: exhausted ? 429 : 502 },
+      );
+    }
+
+    let quote;
+    try {
+      quote = await getQuote();
+    } catch (error) {
+      console.error("[api/retainer/access] feed unavailable after metering", error);
+      return NextResponse.json({ error: "Upstream data feed unavailable" }, { status: 502 });
+    }
+
     return NextResponse.json({
       access: "granted",
       paidThisRequest: false,
@@ -118,7 +157,12 @@ export async function GET(req: Request) {
         active: sub.active,
         nextRenewalSchedule: sub.schedule,
       },
-      resource: { message: "This is the protected resource. You did not pay for this request." },
+      metering: {
+        callsRemainingThisPeriod: metered.remaining,
+        recordedOnChain: metered.hash,
+        why: "each served call is counted on-chain; the renewal that extends the window also refills this",
+      },
+      resource: quote,
     });
   }
 
@@ -220,7 +264,7 @@ export async function GET(req: Request) {
           nextStep: "Ask again after this window expires. It will still be 200, and nothing will have been paid.",
         }
       : { opened: false, error: subscriptionError },
-    resource: { message: "This is the protected resource." },
+    resource: await getQuote().catch(() => null),
   });
   res.headers.set("PAYMENT-RESPONSE", encodePaymentResponseHeader(settlement));
   return res;

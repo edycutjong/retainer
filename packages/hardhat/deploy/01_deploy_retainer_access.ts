@@ -18,6 +18,9 @@ const deployRetainerAccess: DeployFunction = async function (hre: HardhatRuntime
   // access window while burning 2 HBAR of the seller's gas reserve.
   const pricePerPeriod = process.env.RETAINER_PRICE_TINYBAR ?? "100000000"; // 1 HBAR
   const periodSeconds = Number(process.env.RETAINER_PERIOD_SECONDS ?? 3600); // 1 hour
+  // What a period buys. The charge is metered, not flat: a period is a countable quantity of
+  // the feed, and the unattended renewal is what refills it.
+  const callsPerPeriod = Number(process.env.RETAINER_CALLS_PER_PERIOD ?? 25);
 
   // The beneficiary collects charged periods. Deployer by default.
   //
@@ -27,7 +30,7 @@ const deployRetainerAccess: DeployFunction = async function (hre: HardhatRuntime
   // and is never booked. Funding with an ordinary call avoids that entirely.
   const deployment = await deploy("RetainerAccess", {
     from: deployer,
-    args: [deployer, pricePerPeriod, periodSeconds],
+    args: [deployer, pricePerPeriod, periodSeconds, callsPerPeriod],
     log: true,
     autoMine: true,
     gasLimit: "4000000",

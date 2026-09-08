@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     RetainerAccess: {
-      address: "0xd3A218AD4c817B14Cc754e4c996A95435155a27B",
+      address: "0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931",
       abi: [
         {
           inputs: [
@@ -24,6 +24,11 @@ const deployedContracts = {
             {
               internalType: "uint32",
               name: "periodSeconds_",
+              type: "uint32",
+            },
+            {
+              internalType: "uint32",
+              name: "callsPerPeriod_",
               type: "uint32",
             },
           ],
@@ -52,6 +57,11 @@ const deployedContracts = {
         },
         {
           inputs: [],
+          name: "NoAccess",
+          type: "error",
+        },
+        {
+          inputs: [],
           name: "NotBeneficiary",
           type: "error",
         },
@@ -63,6 +73,22 @@ const deployedContracts = {
         {
           inputs: [],
           name: "NothingToFund",
+          type: "error",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint32",
+              name: "used",
+              type: "uint32",
+            },
+            {
+              internalType: "uint32",
+              name: "allowance",
+              type: "uint32",
+            },
+          ],
+          name: "QuotaExhausted",
           type: "error",
         },
         {
@@ -201,6 +227,31 @@ const deployedContracts = {
             },
             {
               indexed: false,
+              internalType: "uint32",
+              name: "callsUsed",
+              type: "uint32",
+            },
+            {
+              indexed: false,
+              internalType: "uint32",
+              name: "callsAllowance",
+              type: "uint32",
+            },
+          ],
+          name: "Metered",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "agent",
+              type: "address",
+            },
+            {
+              indexed: false,
               internalType: "address",
               name: "schedule",
               type: "address",
@@ -317,6 +368,12 @@ const deployedContracts = {
               name: "periodSeconds",
               type: "uint32",
             },
+            {
+              indexed: false,
+              internalType: "uint32",
+              name: "callsPerPeriod",
+              type: "uint32",
+            },
           ],
           name: "TermsSet",
           type: "event",
@@ -374,6 +431,19 @@ const deployedContracts = {
               internalType: "address",
               name: "",
               type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "callsPerPeriod",
+          outputs: [
+            {
+              internalType: "uint32",
+              name: "",
+              type: "uint32",
             },
           ],
           stateMutability: "view",
@@ -443,6 +513,25 @@ const deployedContracts = {
             },
           ],
           stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "agent",
+              type: "address",
+            },
+          ],
+          name: "meter",
+          outputs: [
+            {
+              internalType: "uint32",
+              name: "remaining",
+              type: "uint32",
+            },
+          ],
+          stateMutability: "nonpayable",
           type: "function",
         },
         {
@@ -535,6 +624,11 @@ const deployedContracts = {
               name: "periodSeconds_",
               type: "uint32",
             },
+            {
+              internalType: "uint32",
+              name: "callsPerPeriod_",
+              type: "uint32",
+            },
           ],
           name: "setTerms",
           outputs: [],
@@ -615,6 +709,35 @@ const deployedContracts = {
         {
           inputs: [
             {
+              internalType: "address",
+              name: "agent",
+              type: "address",
+            },
+          ],
+          name: "usageOf",
+          outputs: [
+            {
+              internalType: "uint32",
+              name: "used",
+              type: "uint32",
+            },
+            {
+              internalType: "uint32",
+              name: "allowance",
+              type: "uint32",
+            },
+            {
+              internalType: "uint32",
+              name: "remaining",
+              type: "uint32",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
               internalType: "uint256",
               name: "amount",
               type: "uint256",
@@ -627,8 +750,8 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 40241011,
-      hederaContractId: "0.0.10414167",
+      deployedOnBlock: 40246185,
+      hederaContractId: "0.0.10415845",
     },
   },
 } as const;

@@ -61,6 +61,8 @@ contract RetainerAccess is HederaScheduleService {
         uint256 pricePerPeriod; // tinybar, snapshotted at subscribe time
         uint256 expiresAt;      // unix seconds
         uint32  periodSeconds;
+        uint32  callsUsed;      // metered calls consumed in the current window
+        uint32  callsAllowance; // calls the period buys, snapshotted at subscribe time
         bool    active;
         address schedule;       // pending scheduled call, if any
     }
@@ -106,6 +108,15 @@ contract RetainerAccess is HederaScheduleService {
     /// Seller-set terms. A running subscription keeps the terms it started on.
     uint256 public pricePerPeriod; // tinybar
     uint32  public periodSeconds;
+    /**
+     * Calls one period buys.
+     *
+     * This is what makes the charge metered rather than flat: a period does not buy unlimited
+     * use of the resource, it buys a countable quantity of it. Usage is counted on-chain, so
+     * the meter is auditable by the buyer rather than asserted by the seller — and a renewal
+     * is what refills it.
+     */
+    uint32  public callsPerPeriod;
 
     uint256 public revenue;    // charged periods, withdrawable by beneficiary
     uint256 public gasReserve; // funds scheduled executions
@@ -115,7 +126,8 @@ contract RetainerAccess is HederaScheduleService {
 
     event Funded(address indexed agent, uint256 amount, uint256 balance);
     event GasReserveFunded(address indexed from, uint256 amount, uint256 reserve);
-    event TermsSet(uint256 pricePerPeriod, uint32 periodSeconds);
+    event TermsSet(uint256 pricePerPeriod, uint32 periodSeconds, uint32 callsPerPeriod);
+    event Metered(address indexed agent, uint32 callsUsed, uint32 callsAllowance);
     event SubscriptionStarted(address indexed agent, uint256 pricePerPeriod, uint32 periodSeconds, uint256 expiresAt);
     event RenewalScheduled(address indexed agent, address schedule, uint256 firesAt);
     event RenewalCancelled(address indexed agent, address schedule, uint256 reclaimed);
@@ -133,6 +145,8 @@ contract RetainerAccess is HederaScheduleService {
     error ScheduleFailed(int64 responseCode);
     error TooEarly(uint256 nowTs, uint256 expiresAt);
     error NotBeneficiary();
+    error QuotaExhausted(uint32 used, uint32 allowance);
+    error NoAccess();
     error Insolvent();
     error TransferFailed();
 
@@ -141,10 +155,15 @@ contract RetainerAccess is HederaScheduleService {
         _;
     }
 
-    constructor(address beneficiary_, uint256 pricePerPeriod_, uint32 periodSeconds_) payable {
+    constructor(
+        address beneficiary_,
+        uint256 pricePerPeriod_,
+        uint32 periodSeconds_,
+        uint32 callsPerPeriod_
+    ) payable {
         beneficiary = beneficiary_ == address(0) ? msg.sender : beneficiary_;
         if (pricePerPeriod_ != 0 || periodSeconds_ != 0) {
-            _setTerms(pricePerPeriod_, periodSeconds_);
+            _setTerms(pricePerPeriod_, periodSeconds_, callsPerPeriod_);
         }
         // On Hedera this is usually 0 even when the deploy carried a value — the initial
         // balance is credited outside the EVM frame. See `syncReserve()`.
@@ -159,15 +178,52 @@ contract RetainerAccess is HederaScheduleService {
      * @dev Terms are snapshotted into each `Subscription` at `subscribe()` time, so changing
      *      them never reprices a subscription that is already running.
      */
-    function setTerms(uint256 pricePerPeriod_, uint32 periodSeconds_) external onlyBeneficiary {
-        _setTerms(pricePerPeriod_, periodSeconds_);
+    function setTerms(
+        uint256 pricePerPeriod_,
+        uint32 periodSeconds_,
+        uint32 callsPerPeriod_
+    ) external onlyBeneficiary {
+        _setTerms(pricePerPeriod_, periodSeconds_, callsPerPeriod_);
     }
 
-    function _setTerms(uint256 pricePerPeriod_, uint32 periodSeconds_) private {
+    function _setTerms(uint256 pricePerPeriod_, uint32 periodSeconds_, uint32 callsPerPeriod_) private {
         if (pricePerPeriod_ == 0 || periodSeconds_ < MIN_PERIOD_SECONDS) revert InvalidTerms();
+        if (callsPerPeriod_ == 0) revert InvalidTerms();
         pricePerPeriod = pricePerPeriod_;
         periodSeconds = periodSeconds_;
-        emit TermsSet(pricePerPeriod_, periodSeconds_);
+        callsPerPeriod = callsPerPeriod_;
+        emit TermsSet(pricePerPeriod_, periodSeconds_, callsPerPeriod_);
+    }
+
+    /**
+     * @notice Count one use of the resource against the agent's allowance.
+     * @dev Called by the resource server before it serves a metered response. Reverts once the
+     *      allowance is spent, which is the point: the period sold a countable quantity, not an
+     *      unlimited licence. The counter resets on renewal, so the unattended renewal is what
+     *      refills the quota — the same event that keeps the window open.
+     *
+     *      Restricted to the beneficiary because it is the seller's meter; letting anyone
+     *      increment it would let a stranger burn an agent's allowance.
+     * @return remaining calls left in the current window after this one.
+     */
+    function meter(address agent) external onlyBeneficiary returns (uint32 remaining) {
+        Subscription storage s = _subs[agent];
+        if (block.timestamp >= s.expiresAt) revert NoAccess();
+        if (s.callsUsed >= s.callsAllowance) revert QuotaExhausted(s.callsUsed, s.callsAllowance);
+
+        unchecked {
+            s.callsUsed += 1;
+        }
+        emit Metered(agent, s.callsUsed, s.callsAllowance);
+        return s.callsAllowance - s.callsUsed;
+    }
+
+    /// @notice Metered usage in the agent's current window.
+    function usageOf(address agent) external view returns (uint32 used, uint32 allowance, uint32 remaining) {
+        Subscription storage s = _subs[agent];
+        used = s.callsUsed;
+        allowance = s.callsAllowance;
+        remaining = allowance > used ? allowance - used : 0;
     }
 
     /// @notice Top up the reserve that pays for scheduled executions. Anyone may contribute.
@@ -253,6 +309,8 @@ contract RetainerAccess is HederaScheduleService {
 
         s.pricePerPeriod = pricePerPeriod;
         s.periodSeconds = periodSeconds;
+        s.callsAllowance = callsPerPeriod;
+        s.callsUsed = 0;
         _charge(s, s.pricePerPeriod);
         s.expiresAt = block.timestamp + s.periodSeconds;
         s.active = true;
@@ -289,6 +347,9 @@ contract RetainerAccess is HederaScheduleService {
         }
 
         _charge(s, s.pricePerPeriod);
+        // The renewal refills the meter. This is why a metered subscription is worth renewing:
+        // the same unattended call that extends the window also restores the allowance.
+        s.callsUsed = 0;
         // Grant a full period from whichever is later: the window that just ended, or now.
         // Anchoring on the old expiry keeps windows from drifting when execution is a second
         // early; falling back to `block.timestamp` means a renewal that ran *late* never hands

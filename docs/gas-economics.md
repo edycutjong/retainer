@@ -52,7 +52,7 @@ Supporting figures from the same run:
 These came off the first deployment, `0.0.10406083` /
 [`0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A`](https://hashscan.io/testnet/contract/0.0.10406083),
 which predates the current constructor and ABI. The current source is deployed separately at
-[`0.0.10414167`](https://hashscan.io/testnet/contract/0.0.10414167), where one scheduled renewal
+[`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845), where one scheduled renewal
 was charged 153,816,728 tinybar (1.53817 HBAR) — within 0.7% of the figures in the table above. The fee
 behaviour and the `RENEWAL_GAS_LIMIT` the measurements rest on are unchanged, but do not expect
 `0.0.10406083` to match `RetainerAccess.sol` as it stands today.

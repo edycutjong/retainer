@@ -236,8 +236,8 @@ Two deployments, and they are not the same code. Keeping them apart is the point
   <https://hashscan.io/testnet/contract/0.0.10406083>. Every cost figure above came off this
   contract. It predates the later contract fixes and carries an older constructor and ABI, so
   it does **not** run `RetainerAccess.sol` as it stands today.
-- **The current one** — `0.0.10414167` / `0xd3A218AD4c817B14Cc754e4c996A95435155a27B`,
-  <https://hashscan.io/testnet/contract/0.0.10414167>. This is the address in
+- **The current one** — `0.0.10415845` / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931`,
+  <https://hashscan.io/testnet/contract/0.0.10415845>. This is the address in
   `packages/nextjs/contracts/deployedContracts.ts`, so it is the contract the resource server
   actually talks to. It has renewed itself once unattended; it has not been run to exhaustion,
   which is why the cost table is still quoted from the older deployment.

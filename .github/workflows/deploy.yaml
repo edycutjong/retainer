@@ -1,0 +1,88 @@
+name: Deploy
+
+# Production deploys are gated on the same checks that guard a pull request. A green
+# deployment badge should mean the contracts compiled and the tests passed, not merely
+# that Vercel accepted an upload.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  # A newer push supersedes an in-flight deploy rather than racing it to production.
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Compile contracts
+        run: yarn hardhat:compile
+
+      - name: Run contract tests
+        run: yarn hardhat:test
+
+      - name: Check types
+        run: yarn next:check-types
+
+  deploy:
+    name: Deploy to Vercel
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: yarn
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      # Pulls the project's own settings, including the packages/nextjs root directory and
+      # the production environment variables. Nothing about the build is duplicated here.
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed to $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke test the live gate
+        # A deploy that returns 200 on the homepage but no longer answers 402 on the paid
+        # route has broken the one thing the bounty is judged on, so check it explicitly.
+        run: |
+          url="https://retainer-plum.vercel.app"
+          echo "checking $url/api/retainer/access"
+          code=$(curl -s -o /tmp/gate.json -w '%{http_code}' \
+            "$url/api/retainer/access?agent=0x0000000000000000000000000000000000000abc")
+          echo "HTTP $code"; cat /tmp/gate.json
+          test "$code" = "402" || { echo "::error::expected 402 from the x402 gate, got $code"; exit 1; }
+          grep -q 'hedera:testnet' /tmp/gate.json || { echo "::error::challenge is not for hedera:testnet"; exit 1; }
+          echo "gate is live and challenging on hedera:testnet"

@@ -22,8 +22,8 @@ predates the contract fixes made after that run, so **it does not run the code c
 evidence, not as a copy of the current source.
 
 The current source is deployed separately, at
-**[`0.0.10414167`](https://hashscan.io/testnet/contract/0.0.10414167)** /
-`0xd3A218AD4c817B14Cc754e4c996A95435155a27B` — the address in
+**[`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845)** /
+`0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` — the address in
 `packages/nextjs/contracts/deployedContracts.ts`, and therefore the one the resource server
 talks to. It carries the current ABI (`subscribeFor`, `creditFor`, `syncReserve`, `setTerms`,
 `MIN_PERIOD_SECONDS`), and it has already renewed itself once unattended:
@@ -313,7 +313,7 @@ curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1
 ## The live service, end to end
 
 The deployed resource server at <https://retainer-plum.vercel.app> running against the current
-contract `0.0.10414167`. This is `packages/nextjs/scripts/retainer-agent.ts` in full, unedited —
+contract `0.0.10415845`. This is `packages/nextjs/scripts/retainer-agent.ts` in full, unedited —
 the agent signs exactly one thing, the payment in step 2, and nothing afterwards.
 
 ```

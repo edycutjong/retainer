@@ -5,6 +5,7 @@ import type { RetainerAccess } from "../typechain-types";
 const HSS = "0x000000000000000000000000000000000000016b";
 const PRICE = 100n; // tinybar per period
 const PERIOD = 120; // seconds — must exceed MIN_PERIOD_SECONDS (61)
+const CALLS = 5; // metered calls one period buys
 const RESERVE = 200_000_000n; // must match RENEWAL_COST_ESTIMATE
 
 /**
@@ -37,7 +38,7 @@ describe("RetainerAccess", () => {
 
     c = (await (
       await ethers.getContractFactory("RetainerAccess")
-    ).deploy(seller.address, PRICE, PERIOD, { value: tinybar(RESERVE * 5n) })) as any;
+    ).deploy(seller.address, PRICE, PERIOD, CALLS, { value: tinybar(RESERVE * 5n) })) as any;
   });
 
   const subscribe = (who: any, periods: bigint = 10n) => c.connect(who).subscribe({ value: tinybar(PRICE * periods) });
@@ -117,17 +118,17 @@ describe("RetainerAccess", () => {
     });
 
     it("only the beneficiary may change the terms", async () => {
-      await expect(c.connect(stranger).setTerms(1n, PERIOD)).to.be.revertedWithCustomError(c, "NotBeneficiary");
+      await expect(c.connect(stranger).setTerms(1n, PERIOD, CALLS)).to.be.revertedWithCustomError(c, "NotBeneficiary");
     });
 
     it("rejects a period short enough to keep the renew() window permanently open", async () => {
       // periodSeconds <= 2 * RENEW_SLACK would let anyone loop renew() unattended.
-      await expect(c.setTerms(PRICE, 30)).to.be.revertedWithCustomError(c, "InvalidTerms");
+      await expect(c.setTerms(PRICE, 30, CALLS)).to.be.revertedWithCustomError(c, "InvalidTerms");
     });
 
     it("does not reprice a subscription that is already running", async () => {
       await subscribe(agent, 10n);
-      await c.setTerms(PRICE * 5n, PERIOD);
+      await c.setTerms(PRICE * 5n, PERIOD, CALLS);
       await network.provider.send("evm_increaseTime", [PERIOD]);
       await network.provider.send("evm_mine");
       await c.connect(stranger).renew(agent.address);
@@ -291,7 +292,7 @@ describe("RetainerAccess", () => {
       // Drain the reserve down to a single armed renewal.
       const poor = (await (
         await ethers.getContractFactory("RetainerAccess")
-      ).deploy(seller.address, PRICE, PERIOD, { value: tinybar(RESERVE) })) as any;
+      ).deploy(seller.address, PRICE, PERIOD, CALLS, { value: tinybar(RESERVE) })) as any;
 
       await poor.connect(agent).subscribe({ value: tinybar(PRICE * 10n) });
       await network.provider.send("evm_increaseTime", [PERIOD]);
@@ -346,6 +347,51 @@ describe("RetainerAccess", () => {
         c,
         "ScheduleFailed",
       );
+    });
+  });
+
+  describe("metering — the period buys a countable quantity", () => {
+    it("counts each served call against the allowance", async () => {
+      await subscribe(agent, 10n);
+      await expect(c.meter(agent.address)).to.emit(c, "Metered").withArgs(agent.address, 1, CALLS);
+      const u = await c.usageOf(agent.address);
+      expect(u.used).to.equal(1);
+      expect(u.remaining).to.equal(CALLS - 1);
+    });
+
+    it("refuses once the calls the period bought are spent", async () => {
+      await subscribe(agent, 10n);
+      for (let i = 0; i < CALLS; i++) await c.meter(agent.address);
+      await expect(c.meter(agent.address)).to.be.revertedWithCustomError(c, "QuotaExhausted").withArgs(CALLS, CALLS);
+    });
+
+    it("the renewal refills the meter — the same call that extends the window", async () => {
+      await subscribe(agent, 10n);
+      for (let i = 0; i < CALLS; i++) await c.meter(agent.address);
+      expect((await c.usageOf(agent.address)).remaining).to.equal(0);
+
+      await network.provider.send("evm_increaseTime", [PERIOD]);
+      await network.provider.send("evm_mine");
+      await c.connect(stranger).renew(agent.address); // stands in for the scheduled call
+
+      expect((await c.usageOf(agent.address)).remaining).to.equal(CALLS);
+      await expect(c.meter(agent.address)).to.emit(c, "Metered");
+    });
+
+    it("only the seller may move the meter", async () => {
+      // Otherwise a stranger could burn an agent's allowance without serving it anything.
+      await subscribe(agent, 10n);
+      await expect(c.connect(stranger).meter(agent.address)).to.be.revertedWithCustomError(c, "NotBeneficiary");
+    });
+
+    it("refuses to meter an agent with no access", async () => {
+      await expect(c.meter(stranger.address)).to.be.revertedWithCustomError(c, "NoAccess");
+    });
+
+    it("does not reprice or re-quota a subscription already running", async () => {
+      await subscribe(agent, 10n);
+      await c.setTerms(PRICE, PERIOD, CALLS * 10);
+      expect((await c.usageOf(agent.address)).allowance).to.equal(CALLS);
     });
   });
 

@@ -58,6 +58,24 @@ export const RETAINER_ABI = [
   },
   {
     type: "function",
+    name: "meter",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "agent", type: "address" }],
+    outputs: [{ name: "remaining", type: "uint32" }],
+  },
+  {
+    type: "function",
+    name: "usageOf",
+    stateMutability: "view",
+    inputs: [{ name: "agent", type: "address" }],
+    outputs: [
+      { name: "used", type: "uint32" },
+      { name: "allowance", type: "uint32" },
+      { name: "remaining", type: "uint32" },
+    ],
+  },
+  {
+    type: "function",
     name: "renewalsRemaining",
     stateMutability: "view",
     inputs: [],
@@ -214,4 +232,50 @@ export async function renewalsRemaining(): Promise<bigint> {
     abi: RETAINER_ABI,
     functionName: "renewalsRemaining",
   })) as bigint;
+}
+
+export type Usage = { used: number; allowance: number; remaining: number };
+
+/** Metered usage in the agent's current window. A read — safe to poll. */
+export async function usageOf(agent: Address): Promise<Usage> {
+  const address = getRetainerAddress();
+  if (!address) throw new RetainerNotDeployedError();
+  const r = (await getClient().readContract({
+    address,
+    abi: RETAINER_ABI,
+    functionName: "usageOf",
+    args: [agent],
+  })) as readonly [number, number, number];
+  return { used: r[0], allowance: r[1], remaining: r[2] };
+}
+
+/**
+ * Count one use of the resource against the agent's on-chain allowance.
+ *
+ * This is what makes the charge metered rather than flat: the period sold a countable quantity
+ * of the feed, and the count lives on-chain where the buyer can audit it instead of taking the
+ * seller's word for it. It costs one Hedera transaction per served call, which is only
+ * reasonable because Hedera fees are sub-cent — on a chain with real gas this design would be
+ * absurd, and that tradeoff is the honest reason it is written this way here.
+ *
+ * Throws when the allowance is spent, which the route turns into a 402: the agent has access but
+ * has used up what the period bought, and the next renewal refills it.
+ */
+export async function meterCall(agent: Address): Promise<{ hash: Hex; remaining: number }> {
+  const address = getRetainerAddress();
+  if (!address) throw new RetainerNotDeployedError();
+
+  const client = getClient();
+  // Simulate first so an exhausted quota surfaces as a clean revert rather than a burnt fee.
+  const { request, result } = await client.simulateContract({
+    account: getWallet().account,
+    address,
+    abi: RETAINER_ABI,
+    functionName: "meter",
+    args: [agent],
+  });
+
+  const hash = await getWallet().writeContract(request);
+  await client.waitForTransactionReceipt({ hash, timeout: 30_000 });
+  return { hash, remaining: Number(result) };
 }

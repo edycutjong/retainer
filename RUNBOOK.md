@@ -197,13 +197,13 @@ yarn hardhat:verify:testnet
 ### The two deployments already on testnet
 
 ```
-current   0.0.10414167  /  0xd3A218AD4c817B14Cc754e4c996A95435155a27B
-          https://hashscan.io/testnet/contract/0.0.10414167
+current   0.0.10415845  /  0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931
+          https://hashscan.io/testnet/contract/0.0.10415845
 measured  0.0.10406083  /  0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A
           https://hashscan.io/testnet/contract/0.0.10406083
 ```
 
-`0.0.10414167` runs the current source and is the address recorded in
+`0.0.10415845` runs the current source and is the address recorded in
 `packages/nextjs/contracts/deployedContracts.ts`. One renewal has executed on it unattended
 (`CONTRACTCALL`, `scheduled=true`, `SUCCESS` at `1788827767.015718559`), and `cancel()` deleted
 its pending schedule `0.0.10414197` and reclaimed the reserved gas.

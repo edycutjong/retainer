@@ -20,6 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # gitleaks-action v3 uploads a report artifact, which v2 did not. Under this repo's
+      # read-only default token that upload fails the job with a 403 AFTER the scan has
+      # already passed — "no leaks found" followed by FinalizeArtifact: Forbidden. The scan
+      # needs nothing beyond contents:read; this grant is for the upload alone.
+      actions: write
     steps:
       - uses: actions/checkout@v7
         with:

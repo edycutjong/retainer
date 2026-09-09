@@ -115,7 +115,7 @@ const Home: NextPage = () => {
             source="mirror node · CONTRACTCALL · SUCCESS"
           />
           <Stat
-            value={<>64 + 239</>}
+            value={<>64 + 258</>}
             label="contract tests + resource-server tests passing"
             source="yarn hardhat:test · yarn next:test"
           />

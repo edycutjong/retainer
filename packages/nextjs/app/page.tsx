@@ -418,7 +418,7 @@ const Home: NextPage = () => {
               written twice.
             </p>
             <p className="rt-prose mt-4">
-              A second gateway wraps one endpoint of Hedera&rsquo;s Mirror Node as one tool,{" "}
+              A second gateway wraps one endpoint of Hedera&rsquo;s Mirror Node as the tool{" "}
               <code className="rt-code">findScheduledExecutions</code>. It is deliberately unpublished: that API is
               Hedera&rsquo;s, not ours.
             </p>
@@ -444,7 +444,7 @@ const Home: NextPage = () => {
               </p>
               <p className="rt-mono-ui mt-3" style={{ color: "var(--rt-text-low)" }}>
                 verification_result <span className="rt-renewed-text">verified</span> · access_status true ·
-                scheduled_renewals_found 8 ·{" "}
+                scheduled_renewals_found 8 in a ten-transaction window ·{" "}
                 <a
                   className="rt-link rt-mono"
                   href={`${HASHSCAN}/transaction/1788941916.005290514`}
@@ -470,8 +470,8 @@ const Home: NextPage = () => {
                 >
                   1788940215.030907876
                 </a>{" "}
-                is absent from that endpoint&rsquo;s twenty newest results and plainly present under{" "}
-                <code className="rt-code">/api/v1/transactions?account.id={CURRENT_CONTRACT.id}</code> as{" "}
+                was absent from that endpoint&rsquo;s twenty newest results when measured on 2026-09-09, and is plainly
+                present under <code className="rt-code">/api/v1/transactions?account.id={CURRENT_CONTRACT.id}</code> as{" "}
                 <code className="rt-code">CONTRACTCALL</code> with <code className="rt-code">scheduled: true</code>. The
                 first version of the recipe queried it, reported none found, and looked entirely correct while doing it.
                 Read the account&rsquo;s transactions, not the contract&rsquo;s results.

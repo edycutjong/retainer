@@ -358,7 +358,8 @@ because reading the chain is free and being served is not. Its generated MCP ser
 four tools — `getAccess`, `getStatus`, `info`, `externalDocs`.
 
 **Gateway 2 — `https://hedera-scheduled-proof.bazgateway.com`**, a one-endpoint slice of
-Hedera's Mirror Node REST API exposing one tool, `findScheduledExecutions`. It is deliberately
+Hedera's Mirror Node REST API exposing two tools, `findScheduledExecutions` and `info`. It is
+deliberately
 **not** published: the API behind it is Hedera's, not ours, and listing someone else's public
 API on a marketplace under our name is not ours to do.
 
@@ -366,7 +367,7 @@ The reason to have both is the recipe that binds them. **"Verify self-renewing a
 Hedera"** calls `getStatus` from the first gateway and `findScheduledExecutions` from the
 second: it reads the seller's own claim about a subscription, then goes to the ledger and
 checks whether the renewal that claim rests on was actually executed by Hedera's scheduler.
-That is this project's entire trust argument, run by a machine instead of a reader — the vendor
+That is the trust argument of this project run by a machine instead of a reader — the vendor
 asserts, the network confirms. Its saved run returned:
 
 ```jsonc
@@ -377,16 +378,18 @@ asserts, the network confirms. Its saved run returned:
 }
 ```
 
-whose newest scheduled `CONTRACTCALL` at that moment was consensus `1788941916.005290514`.
+whose newest scheduled `CONTRACTCALL` at that moment was consensus `1788941916.005290514`. The
+count of 8 is what the tool saw in its window — it reads the ten newest transactions by default,
+not the contract's whole history.
 
 ### The endpoint that structurally cannot see a self-renewal
 
-Building that recipe surfaced a finding worth carrying, because it will catch anyone auditing a
+Building that recipe surfaced a finding worth carrying, because it can catch anyone auditing a
 HIP-1215 contract: **`/api/v1/contracts/{id}/results` does not return scheduled executions.** It
 lists calls that arrived as an `EthereumTransaction`, and a renewal the Schedule Service
-executes never was one. The scheduled renewal at consensus `1788940215.030907876` is absent from
-that endpoint's twenty newest results, and plainly present here as `CONTRACTCALL` with
-`scheduled: true`:
+executes never was one. The scheduled renewal at consensus `1788940215.030907876` was absent from
+that endpoint's twenty newest results when this was measured on 2026-09-09, and is plainly
+present here as `CONTRACTCALL` with `scheduled: true`:
 
 ```bash
 curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions?account.id=0.0.10415845&transactiontype=CONTRACTCALL&order=desc" \

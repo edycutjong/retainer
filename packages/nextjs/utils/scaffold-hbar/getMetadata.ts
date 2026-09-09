@@ -18,9 +18,9 @@ const titleTemplate = "%s | Retainer";
 //
 // BUMP THE ?v= WHENEVER THE IMAGE CHANGES. Discord, X and Slack cache the card by URL and offer
 // no purge; a regenerated file at an unchanged URL is invisible to everyone who has already seen it.
-const SOCIAL_CARD = "/og-card.png?v=1";
+const SOCIAL_CARD = "/og-card.png?v=2";
 const SOCIAL_CARD_ALT =
-  "Retainer social card: one signature buys access, then 19 unattended renewals executed by the network, with the countdown ring caught refilling to 60:00";
+  "Retainer social card: one signature buys access, then 39 unattended renewals executed by the network, with the countdown ring caught refilling to 60:00";
 
 export const getMetadata = ({
   title,

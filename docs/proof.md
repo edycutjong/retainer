@@ -29,12 +29,13 @@ Two later deployments exist, and an earlier revision of this file conflated them
 |---|---|---|---|
 | first, **measured** | `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A` | `818c517` | the run below: 1 subscription, **3** unattended renewals (2 re-armed at 154,896,000 tinybar, 1 lapsed at 5,067,825) |
 | intermediate | `0.0.10414167` / `0xd3A218AD4c817B14Cc754e4c996A95435155a27B` | `9eb39e3` (units fix, before metering) | 4 subscriptions, **7** unattended renewals (4 re-armed at 153,816,728, 3 lapsed at 5,027,776), one `cancel()` that deleted pending schedule `0.0.10414197`; the agent-script run at the end of this file |
-| **current** | [`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845) / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` | `7400cd7` (metering) | the address in `packages/nextjs/contracts/deployedContracts.ts`, so the one the resource server talks to. **9** unattended renewals (8 re-armed, 1 lapsed) and **one scheduled execution that reverted** — see "The current deployment" below |
+| **current** | [`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845) / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` | `7400cd7` (metering) | the address in `packages/nextjs/contracts/deployedContracts.ts`, so the one the resource server talks to. **29** unattended renewals (23 re-armed, 6 lapsed) and **one scheduled execution that reverted** — see "The current deployment" below |
 
-**19 unattended renewals across the three** — `CONTRACTCALL`, `scheduled=true`, `SUCCESS`, each
-with a `Renewed` event. Counted on the mirror node on 2026-09-08 with the commands in "Re-verify
-it yourself". A twentieth scheduled execution, on the current deployment, reverted; it is
-recorded, not omitted.
+**39 unattended renewals across the three** — `CONTRACTCALL`, `scheduled=true`, `SUCCESS`, each
+with a `Renewed` event. Counted on the mirror node on 2026-09-09 with the commands in "Re-verify
+it yourself" — a floor, not a ceiling: the current deployment keeps renewing whenever it is
+funded, so re-running the commands should return this many or more. One further scheduled
+execution, on the current deployment, reverted; it is recorded, not omitted.
 
 **Correction, 2026-09-08.** Until this revision the file said the current deployment "has already
 renewed itself once unattended" and cited `1788827767.015718559`. That transaction is real,

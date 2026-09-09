@@ -393,7 +393,7 @@ curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1
 - It does not, by itself, prove the **current** source behaves this way; that is what "The
   current deployment" above is for — eight unattended renewals to a loud lapse on
   `0.0.10415845`, and one scheduled execution that reverted, which this run never showed. The
-  current source is covered by 46 tests in `packages/hardhat/test/RetainerAccess.test.ts`
+  current source is covered by 64 tests in `packages/hardhat/test/RetainerAccess.test.ts`
   (`yarn hardhat:test`), against the mock; none of them models the balance a scheduled
   execution sees.
 - It does not prove the fee stays at 1.54896 HBAR. Hedera gas price moves; the measurement is

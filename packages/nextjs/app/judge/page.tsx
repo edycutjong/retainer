@@ -78,13 +78,13 @@ const receipts: [string, React.ReactNode][] = [
   [
     "Contract tests",
     <>
-      <strong>46 passing</strong> — <code>yarn hardhat:test</code>
+      <strong>64 passing</strong> — <code>yarn hardhat:test</code>
     </>,
   ],
   [
     "Resource-server unit tests",
     <>
-      <strong>10 passing</strong> — <code>yarn next:test</code>
+      <strong>239 passing</strong> — <code>yarn next:test</code>
     </>,
   ],
   [
@@ -252,8 +252,8 @@ BASE_URL=${BASE} yarn tsx scripts/retainer-agent.ts`}</code>
         network behaviour.
       </p>
       <pre className={styles.pre}>
-        <code>{`yarn hardhat:test     # 46 contract tests
-yarn next:test        # 10 unit tests, 202,059 amounts across the unit boundary`}</code>
+        <code>{`yarn hardhat:test     # 64 contract tests
+yarn next:test        # 239 unit tests, 202,059 amounts across the unit boundary`}</code>
       </pre>
 
       <h2>Honest limitations</h2>

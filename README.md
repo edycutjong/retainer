@@ -357,7 +357,7 @@ again: `/api/retainer/access` costs 1000 millicents ($0.01) and `/api/retainer/s
 because reading the chain is free and being served is not. Its generated MCP server exposes
 four tools — `getAccess`, `getStatus`, `info`, `externalDocs`.
 
-**Gateway 2 — `https://hedera-scheduled-proof.bazgateway.com`**, a two-endpoint slice of
+**Gateway 2 — `https://hedera-scheduled-proof.bazgateway.com`**, a one-endpoint slice of
 Hedera's Mirror Node REST API exposing one tool, `findScheduledExecutions`. It is deliberately
 **not** published: the API behind it is Hedera's, not ours, and listing someone else's public
 API on a marketplace under our name is not ours to do.
@@ -400,10 +400,10 @@ not the contract's results.
 
 ## 📊 Engineering Rigor — gas economics, the honest part
 
-The third row above is the whole cost story, and it is the most interesting thing this build
-measured. A renewal that re-arms the next one costs **1.54896 HBAR**. A renewal that does not
-re-arm costs **0.0507 HBAR**. That is a **~30×** gap between two executions of the same
-function, and it means:
+The third row of the renewals table above is the whole cost story, and it is the most
+interesting thing this build measured. A renewal that re-arms the next one costs
+**1.54896 HBAR**. A renewal that does not re-arm costs **0.0507 HBAR**. That is a **~30×** gap
+between two executions of the same function, and it means:
 
 > Re-arming the next renewal — the `scheduleCall` into `0x16b` — is roughly **97%** of what a
 > renewal costs. The renewal's own bookkeeping is the cheap 0.05 HBAR part.

@@ -418,7 +418,7 @@ const Home: NextPage = () => {
               written twice.
             </p>
             <p className="rt-prose mt-4">
-              A second gateway wraps two endpoints of Hedera&rsquo;s Mirror Node as one tool,{" "}
+              A second gateway wraps one endpoint of Hedera&rsquo;s Mirror Node as one tool,{" "}
               <code className="rt-code">findScheduledExecutions</code>. It is deliberately unpublished: that API is
               Hedera&rsquo;s, not ours.
             </p>

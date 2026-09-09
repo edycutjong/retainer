@@ -144,9 +144,11 @@ one run.
 disagree at small n. At n = 30 a p95 is close to the second-largest sample — a weak tail
 estimate. Treat 151 ms as "the tail we have observed", not a service-level guarantee.
 
-**The drift sample is a population, not a sample.** All 30 renewals this deployment has ever
-armed are in it, because the contract emits `RenewalScheduled(agent, schedule, firesAt)` and
-every one of those pairs to a `scheduled=true` CONTRACTCALL. Nothing was selected out.
+**The drift sample is a population, not a sample.** All 30 renewals this deployment had armed as
+of the run above are in it, because the contract emits `RenewalScheduled(agent, schedule, firesAt)`
+and every one of those pairs to a `scheduled=true` CONTRACTCALL. Nothing was selected out. The
+deployment keeps renewing, so a later `yarn bench` reports a larger n — the table is the run it is
+dated with, not a running total.
 
 **Disclosed seeding.** That traffic is operator-generated: every renewal came from subscriptions
 we funded ourselves on testnet, at a demo period of 90 seconds. There are no external users in

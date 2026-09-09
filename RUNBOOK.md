@@ -119,7 +119,7 @@ typings generated into `packages/hardhat/typechain-types`.
 yarn hardhat:test
 ```
 
-Expect **40 passing**. The suite takes roughly two minutes; each test redeploys the contract
+Expect **64 passing**. The suite takes roughly two minutes; each test redeploys the contract
 and reinstalls the mock scheduler.
 
 The tests run against a forked Hedera environment (`HEDERA_FORKING=true`) with a

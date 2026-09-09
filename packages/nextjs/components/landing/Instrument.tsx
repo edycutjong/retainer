@@ -424,9 +424,14 @@ export function Instrument({
           {caption.mono}
         </p>
 
-        {/* the tape: receipts so far */}
+        {/* the tape: receipts so far.
+            `role="group"` because a bare div is `generic`, and generic prohibits an accessible
+            name — the label below was being dropped, silently, and axe flags it
+            (`aria-prohibited-attr`). It only showed up once the live tab became the default:
+            in live mode the tape starts empty, so the label is all a screen reader would get. */}
         <div
           className="rt-tape mt-4"
+          role="group"
           aria-label={mode === "replay" ? "Receipts in the recorded run" : "Seen while this page was open"}
         >
           {mode === "replay"

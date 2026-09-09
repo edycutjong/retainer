@@ -62,8 +62,20 @@ jobs:
             echo "::warning::bundle ${size} KB exceeds the 6000 KB warning threshold"
           fi
 
+      # `--with-deps` runs `apt-get update` across every repo the runner image has configured,
+      # including Google's Chrome repo — which we do not use, because Playwright downloads its own
+      # chromium build. On 2026-09-09 that repo published a bad index (`Hash Sum mismatch` on
+      # `dl.google.com/linux/chrome-stable/deb`) and took this job down four times in a row, on
+      # branches that had not touched a line of UI code. A red E2E badge on a public repo during
+      # judging is a claim about our tests, so it should not be able to mean "Google was mid-publish".
+      # The repo we do not need is dropped, and one retry covers an ordinary transient.
       - name: Install Playwright browsers
-        run: yarn playwright install --with-deps chromium
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          yarn playwright install --with-deps chromium && exit 0
+          echo "::warning::first browser install failed — retrying once"
+          sleep 30
+          yarn playwright install --with-deps chromium
 
       - name: Run E2E tests
         run: yarn playwright test

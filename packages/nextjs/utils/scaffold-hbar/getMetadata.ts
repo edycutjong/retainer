@@ -69,6 +69,10 @@ export const getMetadata = ({
     },
     twitter: {
       card: "summary_large_image",
+      // Without these the card renders with no byline: X attributes the unfurl to nobody, and
+      // the "posted by" credit on a shared link is the only authorship signal most people see.
+      site: "@edycutjong",
+      creator: "@edycutjong",
       title: {
         default: title,
         template: titleTemplate,

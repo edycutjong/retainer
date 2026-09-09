@@ -20,10 +20,13 @@
  *
  * Env (all optional, shown with defaults):
  *   PERIOD_SECONDS=3600     new access window. Contract floor is MIN_PERIOD_SECONDS = 61.
+ *   UNTIL=2026-09-16T23:59Z how long it must stay alive. Reserve and periods are DERIVED from
+ *                           this, so the demo cannot be funded to a date that quietly precedes
+ *                           judging -- the mistake this default exists to prevent.
  *   PRICE_HBAR=1            price per period. Unchanged by default.
  *   CALLS_PER_PERIOD=<keep> metered calls per window. Read from the contract if unset.
- *   RESERVE_HBAR=120        HBAR to add to the gas reserve.
- *   PERIODS=24              periods to fund the demo subscription for.
+ *   RESERVE_HBAR=<derived>  override the derived gas reserve.
+ *   PERIODS=<derived>       override the derived subscription funding.
  *   AGENT=0xD14C...         subscription to restart. Defaults to the demo agent.
  *   DRY_RUN=1               print the plan and the arithmetic, send nothing.
  *
@@ -54,9 +57,16 @@ const toTinybar = (h: number) => BigInt(Math.round(h * 1e8));
 async function main() {
   const dryRun = process.env.DRY_RUN === "1";
   const periodSeconds = Number(process.env.PERIOD_SECONDS ?? 3600);
-  const reserveHbar = Number(process.env.RESERVE_HBAR ?? 120);
-  const periods = BigInt(process.env.PERIODS ?? 24);
   const agent = process.env.AGENT ?? DEMO_AGENT;
+
+  // Derive funding from the date it must survive to, not from a number someone guessed. A
+  // hand-picked reserve is how you fund the demo to a date that quietly precedes judging.
+  const until = new Date(process.env.UNTIL ?? "2026-09-16T23:59Z");
+  const hours = (until.getTime() - Date.now()) / 3_600_000;
+  if (!(hours > 0)) throw new Error(`UNTIL=${until.toISOString()} is in the past`);
+  const renewalsNeeded = Math.ceil((hours * 3600) / periodSeconds);
+  const reserveHbar = Number(process.env.RESERVE_HBAR ?? Math.ceil(renewalsNeeded * REARM_COST_HBAR));
+  const periods = BigInt(process.env.PERIODS ?? renewalsNeeded + 1);
 
   const dep = JSON.parse(fs.readFileSync("deployments/hederaTestnet/RetainerAccess.json", "utf8"));
   const provider = new ethers.JsonRpcProvider(RPC);
@@ -96,14 +106,29 @@ async function main() {
   console.log(`next: ${hbar(price)} per ${periodSeconds}s · ${callsPerPeriod} calls`);
 
   const renewalsFunded = Math.floor(reserveHbar / REARM_COST_HBAR);
-  const hours = (renewalsFunded * periodSeconds) / 3600;
-  console.log(
-    `      +${reserveHbar} HBAR reserve ≈ ${renewalsFunded} re-arming renewals at ~${REARM_COST_HBAR} HBAR each`,
-  );
-  console.log(`      ≈ ${hours.toFixed(1)} hours of unattended life\n`);
+  const livesHours = (renewalsFunded * periodSeconds) / 3600;
+  const lapsesAt = new Date(Date.now() + livesHours * 3_600_000);
+  const subscriptionHbar = (Number(price) / 1e8) * Number(periods);
 
-  if (hours < 72)
-    console.log(`      NOTE: under 72h. Judging starts 2026-09-14T16:00Z; raise RESERVE_HBAR or PERIOD_SECONDS.\n`);
+  console.log(
+    `      target   alive until ${until.toISOString().slice(0, 16)}Z (${hours.toFixed(0)}h) = ${renewalsNeeded} renewals`,
+  );
+  console.log(
+    `      gas      +${reserveHbar} HBAR reserve -> ${renewalsFunded} re-arms at ~${REARM_COST_HBAR} HBAR each`,
+  );
+  console.log(`      subs     ${subscriptionHbar} HBAR for ${periods} periods`);
+  console.log(`      TOTAL    ${(reserveHbar + subscriptionHbar).toFixed(0)} HBAR from the buyer account`);
+  console.log(`      lapses   ${lapsesAt.toISOString().slice(0, 16)}Z (${livesHours.toFixed(0)}h of life)\n`);
+
+  // Two separate pots, two separate ways to fall short. Say WHICH one is short, not just "short".
+  const JUDGING_STARTS = new Date("2026-09-14T16:00Z");
+  if (lapsesAt < JUDGING_STARTS)
+    console.log(`      WARNING: gas lapses BEFORE judging starts ${JUDGING_STARTS.toISOString().slice(0, 16)}Z.`);
+  else if (lapsesAt < until)
+    console.log(`      WARNING: gas lapses before the ${until.toISOString().slice(0, 10)} target.`);
+  if (Number(periods) < renewalsNeeded)
+    console.log(`      WARNING: subscription funds ${periods} periods but ${renewalsNeeded} are needed.`);
+  console.log();
 
   if (dryRun) return void console.log("DRY_RUN=1 — nothing sent.");
 

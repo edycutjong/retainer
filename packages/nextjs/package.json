@@ -5,6 +5,7 @@
   "author": "Edy Cu",
   "license": "MIT",
   "scripts": {
+    "bench": "tsx scripts/bench.ts",
     "build": "next build",
     "check-types": "next typegen && tsc --noEmit --incremental",
     "dev": "next dev",

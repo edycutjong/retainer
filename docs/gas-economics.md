@@ -62,6 +62,15 @@ to match `RetainerAccess.sol` as it stands today. (An earlier revision of this p
 153,816,728-tinybar renewal here; that execution belongs to the intermediate deployment
 `0.0.10414167` — see the correction in `docs/proof.md`.)
 
+A third pair, measured a day later on the same deployment while producing the receipt in
+[`DEMO.md`](../DEMO.md): the re-arming renewal at `1788959278.032191312` charged **160,263,036
+tinybar (1.60263036 HBAR)** and the lapsing one at `1788959368.009026464` charged **5,432,076
+(0.05432076 HBAR)** — a 29.5× gap again, re-arming still ~96.6% of the cost. The re-arming
+charge is 3.5% above the 1.54896 HBAR in the table, which is what gas-price movement looks like
+and why `RENEWAL_COST_ESTIMATE` carries headroom rather than quoting a measurement as a
+guarantee. Nothing in the conclusions below changes; the number to price against moved, and it
+moved the wrong way for the seller.
+
 One more measured number belongs in a note about what scheduled execution costs: on the current
 deployment a scheduled `renew()` **reverted** at `1788840415.078121802` with the contract's own
 `Insolvent()` guard while the account held 239 million tinybar more than its three pots. The

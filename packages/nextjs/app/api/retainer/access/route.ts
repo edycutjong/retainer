@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import {
   decodePaymentSignatureHeader,
   encodePaymentRequiredHeader,
@@ -6,6 +6,7 @@ import {
 } from "@x402/core/http";
 import type { PaymentRequirements, ResourceInfo } from "@x402/core/types";
 import { getAddress, isAddress } from "viem";
+import { AUDIT_SCHEMA_VERSION, fitFailureRecord, submitAuditEvent } from "~~/services/audit/hcs";
 import { getQuote } from "~~/services/feed/hedera";
 import {
   RetainerNotDeployedError,
@@ -16,6 +17,7 @@ import {
   subscriptionOf,
 } from "~~/services/retainer/server";
 import {
+  FACILITATOR_URL,
   HBAR_ASSET,
   MAX_TIMEOUT_SECONDS,
   X402_NETWORK,
@@ -254,6 +256,32 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Payment settlement failed", reason: settlement.errorReason }, { status: 402 });
   }
 
+  // ── Write the payment into the public audit trail.
+  //
+  // `after()` runs this once the response is already on the wire, and `submitAuditEvent` never
+  // rejects, so the trail is doubly unable to affect what the agent gets. That ordering is not a
+  // detail: a service whose payments fail when its own bookkeeping is down would be a worse
+  // product than one with no bookkeeping at all. The record is a claim ABOUT the chain, made on
+  // the chain, and it stands or falls on being checkable — see services/audit/hcs.ts.
+  const amountTinybar = (periodPriceTinybar() * periodsPerPurchase()).toString();
+  const settlementId = settlement.transaction ?? "unknown";
+  const observedAt = Math.floor(Date.now() / 1000);
+  after(() =>
+    submitAuditEvent({
+      v: AUDIT_SCHEMA_VERSION,
+      event: "payment.settled",
+      network: settlement.network ?? X402_NETWORK,
+      resource: url.pathname,
+      agent,
+      settlement: settlementId,
+      amountTinybar,
+      asset: "HBAR",
+      facilitator: new URL(FACILITATOR_URL).host,
+      payer: settlement.payer,
+      at: observedAt,
+    }),
+  );
+
   // ── Turn the settled payment into on-chain subscription state.
   //
   // This is the join. The agent signed one off-chain x402 payment; the seller received it and
@@ -270,6 +298,42 @@ export async function GET(req: Request) {
     subscriptionError = error instanceof Error ? error.message : String(error);
     console.error("[api/retainer/access] settled payment but failed to open subscription", error);
   }
+
+  // The second half of the trail, and the reason the first half is worth reading: it names the
+  // `subscribeFor` transaction the settled payment turned into, so a reader can follow one
+  // settlement id to the on-chain access it bought. A failure is recorded too — an audit trail
+  // that only logs successes records the seller's best days, not its books.
+  const contractAddress = getRetainerAddress() ?? "unknown";
+  after(() =>
+    submitAuditEvent(
+      subscriptionTx
+        ? {
+            v: AUDIT_SCHEMA_VERSION,
+            event: "subscription.opened",
+            network: X402_NETWORK,
+            resource: url.pathname,
+            agent,
+            settlement: settlementId,
+            amountTinybar,
+            contract: contractAddress,
+            subscriptionTx,
+            periods: Number(periodsPerPurchase()),
+            at: Math.floor(Date.now() / 1000),
+          }
+        : fitFailureRecord({
+            v: AUDIT_SCHEMA_VERSION,
+            event: "subscription.failed",
+            network: X402_NETWORK,
+            resource: url.pathname,
+            agent,
+            settlement: settlementId,
+            amountTinybar,
+            contract: contractAddress,
+            error: subscriptionError ?? "unknown",
+            at: Math.floor(Date.now() / 1000),
+          }),
+    ),
+  );
 
   const res = NextResponse.json({
     access: "granted",

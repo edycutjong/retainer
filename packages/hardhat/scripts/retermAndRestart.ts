@@ -29,6 +29,9 @@
  *   PERIODS=<derived>       override the derived subscription funding.
  *   AGENT=0xD14C...         subscription to restart. Defaults to the demo agent.
  *   DRY_RUN=1               print the plan and the arithmetic, send nothing.
+ *   RESERVE_ONLY=1          only top up the gas reserve. Skips setTerms and subscribeFor, so it
+ *                           is safe to re-run against a live subscription without re-terming it
+ *                           or opening a second one.
  *
  * SELLER_PRIVATE_KEY signs setTerms (onlyBeneficiary). BUYER_PRIVATE_KEY funds and subscribes.
  */
@@ -39,9 +42,12 @@ import * as path from "path";
 const RPC = process.env.HEDERA_RPC_URL || "https://testnet.hashio.io/api";
 const DEMO_AGENT = "0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66";
 
-// Measured on this deployment, 2026-09-09: a renewal that re-arms costs 1.53-1.60 HBAR, one that
-// lapses costs 0.05-0.06. Sizing the reserve off the re-arm cost is the conservative direction.
-const REARM_COST_HBAR = 1.6;
+// What the CONTRACT reserves per renewal, not what a renewal is finally charged. Measured
+// 2026-09-09 by funding 282 HBAR and reading renewalsRemaining() back as 143: 1.97 each. Actual
+// charged fees are 1.53-1.60, but the contract books against RENEWAL_GAS_LIMIT up front, so
+// sizing off the charged fee under-funds by ~23% -- which is exactly how the first run of this
+// script covered the start of judging but not the end.
+const REARM_COST_HBAR = 1.97;
 
 function cred(k: string): string {
   const f = path.join(process.env.HOME!, ".config/retainer/hedera.env");
@@ -65,8 +71,6 @@ async function main() {
   const hours = (until.getTime() - Date.now()) / 3_600_000;
   if (!(hours > 0)) throw new Error(`UNTIL=${until.toISOString()} is in the past`);
   const renewalsNeeded = Math.ceil((hours * 3600) / periodSeconds);
-  const reserveHbar = Number(process.env.RESERVE_HBAR ?? Math.ceil(renewalsNeeded * REARM_COST_HBAR));
-  const periods = BigInt(process.env.PERIODS ?? renewalsNeeded + 1);
 
   const dep = JSON.parse(fs.readFileSync("deployments/hederaTestnet/RetainerAccess.json", "utf8"));
   const provider = new ethers.JsonRpcProvider(RPC);
@@ -82,6 +86,12 @@ async function main() {
   const callsNow = Number(await asSeller.callsPerPeriod());
   const minPeriod = Number(await asSeller.MIN_PERIOD_SECONDS());
   const armableNow: bigint = await asSeller.renewalsRemaining();
+
+  // Fund the SHORTFALL, not the total. gasReserve carries over, so deriving the full amount
+  // would double-fund a top-up -- the reason RESERVE_ONLY needs this rather than a flat number.
+  const renewalsShort = Math.max(0, renewalsNeeded - Number(armableNow));
+  const reserveHbar = Number(process.env.RESERVE_HBAR ?? Math.ceil(renewalsShort * REARM_COST_HBAR));
+  const periods = BigInt(process.env.PERIODS ?? renewalsNeeded + 1);
 
   const priceHbar = Number(process.env.PRICE_HBAR ?? Number(priceNow) / 1e8);
   const callsPerPeriod = Number(process.env.CALLS_PER_PERIOD ?? callsNow);
@@ -105,7 +115,7 @@ async function main() {
   console.log(`      = ${((Number(armableNow) * periodNow) / 60).toFixed(1)} minutes of life\n`);
   console.log(`next: ${hbar(price)} per ${periodSeconds}s · ${callsPerPeriod} calls`);
 
-  const renewalsFunded = Math.floor(reserveHbar / REARM_COST_HBAR);
+  const renewalsFunded = Number(armableNow) + Math.floor(reserveHbar / REARM_COST_HBAR);
   const livesHours = (renewalsFunded * periodSeconds) / 3600;
   const lapsesAt = new Date(Date.now() + livesHours * 3_600_000);
   const subscriptionHbar = (Number(price) / 1e8) * Number(periods);
@@ -114,7 +124,7 @@ async function main() {
     `      target   alive until ${until.toISOString().slice(0, 16)}Z (${hours.toFixed(0)}h) = ${renewalsNeeded} renewals`,
   );
   console.log(
-    `      gas      +${reserveHbar} HBAR reserve -> ${renewalsFunded} re-arms at ~${REARM_COST_HBAR} HBAR each`,
+    `      gas      +${reserveHbar} HBAR (${armableNow} armed, ${renewalsShort} short) -> ${renewalsFunded} total at ~${REARM_COST_HBAR} each`,
   );
   console.log(`      subs     ${subscriptionHbar} HBAR for ${periods} periods`);
   console.log(`      TOTAL    ${(reserveHbar + subscriptionHbar).toFixed(0)} HBAR from the buyer account`);
@@ -131,6 +141,20 @@ async function main() {
   console.log();
 
   if (dryRun) return void console.log("DRY_RUN=1 — nothing sent.");
+
+  // Topping up an already-correct subscription must not re-term it or open a second one.
+  if (process.env.RESERVE_ONLY === "1") {
+    console.log(`fundGasReserve() +${reserveHbar} HBAR (RESERVE_ONLY — no setTerms, no subscribe)`);
+    const only = await (
+      await asBuyer.fundGasReserve({ value: toTinybar(reserveHbar) * WEIBAR_PER_TINYBAR, gasLimit: 200_000 })
+    ).wait();
+    console.log(`    tx ${only!.hash}`);
+    const armed: bigint = await asSeller.renewalsRemaining();
+    console.log(
+      `\ndone. reserve arms ${armed} renewals ≈ ${((Number(armed) * periodSeconds) / 3600).toFixed(0)} hours`,
+    );
+    return;
+  }
 
   // 1. Re-term FIRST. Terms snapshot at subscribe() time, so a subscription opened before this
   //    would keep the old period for its entire life.

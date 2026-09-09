@@ -12,6 +12,7 @@
   },
   "scripts": {
     "audit": "yarn npm audit --recursive --severity high",
+    "bench": "yarn workspace @retainer/nextjs bench",
     "check-types": "yarn hardhat:check-types && yarn next:check-types",
     "ci": "yarn hardhat:compile && yarn test && yarn lint && yarn check-types",
     "e2e": "yarn next:build && playwright test",

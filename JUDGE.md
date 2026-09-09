@@ -163,9 +163,11 @@ Four real ones. None of them is fixed here.
    balance; neither schedules anything. Opening a subscription again is the only way back —
    `subscribe()`, or the `subscribeFor()` the server calls when the agent pays the next 402. So
    the unattended part runs exactly as far as the money does: until the subscriber's balance or
-   the seller's gas reserve runs dry, and then someone outside has to send a transaction. At the
-   demo settings — 90-second periods, 2 ℏ held back per armed renewal — that is minutes, not
-   months.
+   the seller's gas reserve runs dry, and then someone outside has to send a transaction. With
+   2 ℏ held back per armed renewal, the period length decides how long that takes: at the
+   90-second periods the demo ran until 2026-09-09, minutes; at the hourly periods it runs now,
+   days. Either way it is the reserve that ends it, and `periodSeconds` in `/api/retainer/status`
+   says which setting is live.
 
 Also true: not audited, testnet only, and `RENEWAL_COST_ESTIMATE` is an explicit estimate — a
 contract cannot know a future network fee.

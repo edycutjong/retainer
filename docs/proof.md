@@ -56,7 +56,8 @@ current source concrete:
   source (`subscribe()` is `0x8f449a05`, `subscribeFor(address)` is `0x6da6c39c`).
 - The run used a **60-second period**. The current source sets `MIN_PERIOD_SECONDS = 61`, a
   bound added after this run so the anyone-callable `renew()` window stays a strict minority
-  of every period; the current deployment runs 90-second periods.
+  of every period; the current deployment ran 90-second periods when this run was transcribed and
+  hourly ones since 2026-09-09, `periodSeconds` in `/api/retainer/status` being the live answer.
 
 Neither affects what the run demonstrates: the Schedule Service really does call back into a
 contract, on time, unattended, and re-arm itself — and what that costs.

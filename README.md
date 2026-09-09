@@ -565,8 +565,13 @@ runs exactly as far as the money does: until the subscriber's balance or the sel
 reserve runs dry, and no further. Nothing on-chain is holding a wake-up call after a lapse, so
 the restart has to come from outside — the agent paying again, or the seller topping up
 `fundGasReserve()`, which nothing in the contract does on its own. That boundary is easy to
-miss at the demo settings on the current deployment: 90-second periods against a reserve that
-holds back 2 ℏ per armed renewal, so a funded Retainer burns down in minutes rather than months.
+miss, because it is the gas reserve and not the subscription that ends up being the clock: a
+renewal that re-arms costs about 1.6 ℏ of gas to collect 1 ℏ of revenue, and 2 ℏ is held back per
+armed renewal while it is pending. The period length turns that into a duration. The demo ran
+90-second periods until 2026-09-09 and burned down in minutes; it runs hourly periods now and the
+same reserve lasts days. `packages/hardhat/scripts/retermAndRestart.ts` derives both the period and
+the reserve from the date the demo has to survive to, rather than from a number someone picked, and
+`periodSeconds` in `/api/retainer/status` is the live answer for whatever it is set to today.
 
 ## 📐 Reproduce the numbers
 

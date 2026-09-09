@@ -283,7 +283,8 @@ bookkeeping is the 0.05 HBAR part.
 - **Memo** `Retainer x402 payment audit trail | retainer.edycu.dev`
 - **Admin key** `null` — the topic can never be updated or deleted, by anyone, including us
 - **Submit key** `ECDSA_SECP256K1`, the seller account `0.0.10402910` — only it can append
-- **Messages** 4, from two real paid requests through the live gate on 2026-09-09
+- **Messages** 6 at the time of writing, from three real paid requests through the gate on
+  2026-09-09. The topic is append-only and live, so a later reader may find more
 
 | Seq | Consensus | Event | Settlement |
 |---|---|---|---|
@@ -291,6 +292,8 @@ bookkeeping is the 0.05 HBAR part.
 | 2 | `1788962638.915568407` | `subscription.opened`, `subscribeFor` `0x72acc577…de1319` at [`1788962634.749890619`](https://hashscan.io/testnet/transaction/1788962634.749890619) | `0.0.7162784@1788962625.048553106` |
 | 3 | `1788962964.258637896` | `subscription.opened`, `subscribeFor` `0x37afa072…32eb72` at [`1788962958.304056104`](https://hashscan.io/testnet/transaction/1788962958.304056104) | `0.0.7162784@1788962945.717898779` |
 | 4 | `1788962964.413170104` | `payment.settled` | `0.0.7162784@1788962945.717898779` |
+| 5 | `1788964315.663151076` | `subscription.opened`, `subscribeFor` `0x3a75a8f8…155d4` at [`1788964311.654000843`](https://hashscan.io/testnet/transaction/1788964311.654000843) | `0.0.7162784@1788964302.018116820` |
+| 6 | `1788964315.697708511` | `payment.settled` | `0.0.7162784@1788964302.018116820` |
 
 **Proves the two rails can be joined by a stranger.** The settlement id on each record resolves
 to a `CRYPTOTRANSFER` `SUCCESS` on the mirror node, and each `subscriptionTx` resolves to a

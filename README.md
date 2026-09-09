@@ -412,7 +412,7 @@ memo    Retainer x402 payment audit trail | retainer.edycu.dev
 admin   none — immutable
 submit  ECDSA_SECP256K1 — append is restricted
 ...
-4 message(s), 2 settled payment(s), 0 failed check(s)
+6 message(s), 3 settled payment(s), 0 failed check(s)
 ```
 
 ### It cannot break a payment, by construction

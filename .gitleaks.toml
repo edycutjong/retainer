@@ -1,0 +1,27 @@
+# gitleaks configuration.
+#
+# The full default rule set is kept. This file exists to allowlist exactly ONE string.
+#
+# `DEMO.md` documents the command that produced its receipt, and that command sets
+# `RETAINER_ACCESS_ADDRESS=0x4330…a931`. gitleaks' `generic-api-key` rule matches on shape and
+# entropy — an identifier containing "access", an `=`, and 20 bytes of hex — so it flags it,
+# correctly by its own rules. The value is the public EVM address of the deployed
+# RetainerAccess contract, readable by anyone at
+# https://hashscan.io/testnet/contract/0.0.10415845 and already printed on the landing page,
+# in the README and in docs/proof.md.
+#
+# The exception is written against the address itself rather than against the rule, the file
+# or a commit fingerprint. Suppressing `generic-api-key` would blind the scan to the thing it
+# is actually here for — a RETAINER_SERVER_KEY or an ECDSA operator key pasted into an example
+# file — and a path exception would go stale the moment DEMO.md changed. This allowlist can
+# only ever hide one already-public constant.
+#
+# Nothing else is exempt. Credentials live in ~/.config/retainer/, never in this tree.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "The deployed RetainerAccess contract address — public, on HashScan, not a secret"
+regexTarget = "match"
+regexes = ['''0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931''']

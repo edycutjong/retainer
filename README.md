@@ -303,11 +303,11 @@ There are three deployments on testnet, and they are not interchangeable:
 
 | | Contract | What it is |
 |---|---|---|
-| **Current** | `0.0.10415845` / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` · [HashScan](https://hashscan.io/testnet/contract/0.0.10415845) | `RetainerAccess.sol` as it stands in this repo (`7400cd7`). It is what `packages/nextjs/contracts/deployedContracts.ts` points at, so it is the contract the resource server talks to. **9 unattended renewals**, one full lapse cycle, and one scheduled execution that reverted (below). |
+| **Current** | `0.0.10415845` / `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` · [HashScan](https://hashscan.io/testnet/contract/0.0.10415845) | `RetainerAccess.sol` as it stands in this repo (`7400cd7`). It is what `packages/nextjs/contracts/deployedContracts.ts` points at, so it is the contract the resource server talks to. **29 unattended renewals**, one full lapse cycle, and one scheduled execution that reverted (below). |
 | Intermediate | `0.0.10414167` / `0xd3A218AD4c817B14Cc754e4c996A95435155a27B` · [HashScan](https://hashscan.io/testnet/contract/0.0.10414167) | The units-corrected source before metering (`9eb39e3`). **7 unattended renewals**, one `cancel()` that deleted a pending schedule, and the agent-script transcript at the end of `docs/proof.md`. |
 | **First** | `0.0.10406083` / `0x8B42a662b0Bd5EecF09517840f63A61AAbEb952A` · [HashScan](https://hashscan.io/testnet/contract/0.0.10406083) | The deployment that produced the cost table below. It predates the current constructor and ABI, so do not read it as a copy of the current source. **3 unattended renewals.** |
 
-**19 renewals the network executed by itself**, across the three — every one a `CONTRACTCALL`
+**39 renewals the network executed by itself**, across the three — every one a `CONTRACTCALL`
 with `scheduled=true` and `SUCCESS`, each with a `Renewed` event; the count and the commands
 that reproduce it are in [`docs/proof.md`](docs/proof.md). On the current deployment the loop
 ran eight times in a row on 2026-09-08 with no submitter, from one ordinary `renew()` to a loud

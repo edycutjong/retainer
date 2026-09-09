@@ -399,6 +399,88 @@ const Home: NextPage = () => {
         </div>
       </section>
 
+      {/* ── Machine-consumable: the OpenAPI, the gateways, the recipe */}
+      <section id="agents" className="rt-section" aria-labelledby="agents-title">
+        <div className="rt-container grid gap-10 lg:grid-cols-12">
+          <div className="lg:col-span-5 rt-reveal">
+            <p className="rt-eyebrow">Consumable by an agent</p>
+            <h2 id="agents-title" className="rt-h2 mt-3">
+              The same gate, as MCP tools.
+            </h2>
+            <p className="rt-prose mt-4">
+              The API publishes an OpenAPI 3.1 document at{" "}
+              <a className="rt-link" href="/openapi.json">
+                /openapi.json
+              </a>
+              . Registering it with Bazantic produces an HTTP gateway and, from the same document, an MCP server — the
+              tool descriptions an agent reads are that document&rsquo;s own{" "}
+              <code className="rt-code">description</code> strings, verbatim. The spec is the interface; nothing is
+              written twice.
+            </p>
+            <p className="rt-prose mt-4">
+              A second gateway wraps one endpoint of Hedera&rsquo;s Mirror Node as the tool{" "}
+              <code className="rt-code">findScheduledExecutions</code>. It is deliberately unpublished: that API is
+              Hedera&rsquo;s, not ours.
+            </p>
+          </div>
+          <div className="lg:col-span-7 rt-reveal grid gap-4 sm:grid-cols-2">
+            <div className="rt-panel">
+              <h3 className="rt-h3">Four tools, from the spec</h3>
+              <p className="rt-small mt-2" style={{ color: "var(--rt-text-mid)" }}>
+                <span className="rt-mono">getAccess</span> · <span className="rt-mono">getStatus</span> ·{" "}
+                <span className="rt-mono">info</span> · <span className="rt-mono">externalDocs</span>, priced per
+                method: the paid call at 1000 millicents, the chain read at 0. The same asymmetry the contract has.
+              </p>
+              <p className="rt-small mt-3" style={{ color: "var(--rt-text-low)" }}>
+                The gateway is published to Bazantic&rsquo;s marketplace at{" "}
+                <span className="rt-mono">retainer-x402.bazgateway.com</span>, currently pending verification.
+              </p>
+            </div>
+            <div className="rt-panel">
+              <h3 className="rt-h3">A recipe that checks the claim</h3>
+              <p className="rt-small mt-2" style={{ color: "var(--rt-text-mid)" }}>
+                It reads the seller&rsquo;s own <span className="rt-mono">getStatus</span>, then asks Hedera whether the
+                renewal that claim rests on was executed. The vendor asserts; the network confirms.
+              </p>
+              <p className="rt-mono-ui mt-3" style={{ color: "var(--rt-text-low)" }}>
+                verification_result <span className="rt-renewed-text">verified</span> · access_status true ·
+                scheduled_renewals_found 8 in a ten-transaction window ·{" "}
+                <a
+                  className="rt-link rt-mono"
+                  href={`${HASHSCAN}/transaction/1788941916.005290514`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  1788941916.005290514
+                </a>
+              </p>
+            </div>
+            <div className="rt-panel sm:col-span-2">
+              <h3 className="rt-h3">The endpoint that cannot see a self-renewal</h3>
+              <p className="rt-small mt-2" style={{ color: "var(--rt-text-mid)" }}>
+                Building it surfaced a finding worth carrying:{" "}
+                <code className="rt-code">/api/v1/contracts/&#123;id&#125;/results</code> does not return scheduled
+                executions — it lists calls that arrived as an <code className="rt-code">EthereumTransaction</code>, and
+                a renewal the Schedule Service executes never was one. The scheduled renewal at{" "}
+                <a
+                  className="rt-link rt-mono"
+                  href={`${HASHSCAN}/transaction/1788940215.030907876`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  1788940215.030907876
+                </a>{" "}
+                was absent from that endpoint&rsquo;s twenty newest results when measured on 2026-09-09, and is plainly
+                present under <code className="rt-code">/api/v1/transactions?account.id={CURRENT_CONTRACT.id}</code> as{" "}
+                <code className="rt-code">CONTRACTCALL</code> with <code className="rt-code">scheduled: true</code>. The
+                first version of the recipe queried it, reported none found, and looked entirely correct while doing it.
+                Read the account&rsquo;s transactions, not the contract&rsquo;s results.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Questions */}
       <section id="questions" className="rt-section" aria-labelledby="q-title">
         <div className="rt-container grid gap-10 lg:grid-cols-12">
@@ -445,6 +527,8 @@ const Home: NextPage = () => {
                 <code className="rt-code">Lapsed(&quot;balance will not cover the next period&quot;)</code> and does not
                 re-arm. The last row of each ledger above is that event — 0.0507 ℏ on the recorded run, 0.0522 ℏ on the
                 current deployment — with no <code className="rt-code">SCHEDULECREATE</code> after it. Loud, not silent.
+                It does not restart itself either: from there <code className="rt-code">renew()</code> reverts{" "}
+                <code className="rt-code">NotSubscribed()</code>, and opening a subscription again is the way back.
               </div>
             </details>
             <details>
@@ -467,10 +551,10 @@ const Home: NextPage = () => {
           <div className="lg:col-span-4 rt-reveal">
             <p className="rt-eyebrow">What this does not claim</p>
             <h2 id="limits-title" className="rt-h2 mt-3">
-              Three real limitations. None is fixed here.
+              Four real limitations. None is fixed here.
             </h2>
           </div>
-          <ol className="lg:col-span-8 grid gap-4 sm:grid-cols-3 list-none m-0 p-0 rt-reveal">
+          <ol className="lg:col-span-8 grid gap-4 sm:grid-cols-2 list-none m-0 p-0 rt-reveal">
             <li className="rt-panel">
               <p className="rt-mono-ui rt-eyebrow--expiring" style={{ color: "var(--rt-expiring-ink)" }}>
                 01
@@ -504,6 +588,18 @@ const Home: NextPage = () => {
                 the network fired <code className="rt-code">renew()</code> and the contract&rsquo;s own{" "}
                 <code className="rt-code">Insolvent()</code> guard rejected it; the run had to be restarted by hand. The
                 numbers point at the gas Hedera reserves on the payer during a scheduled call. Not fixed here.
+              </p>
+            </li>
+            <li className="rt-panel">
+              <p className="rt-mono-ui" style={{ color: "var(--rt-expiring-ink)" }}>
+                04
+              </p>
+              <h3 className="rt-h3 mt-2">A lapse cannot restart itself.</h3>
+              <p className="rt-small mt-2" style={{ color: "var(--rt-text-mid)" }}>
+                Once <code className="rt-code">active</code> is false the contract will not re-arm:{" "}
+                <code className="rt-code">renew()</code> reverts <code className="rt-code">NotSubscribed()</code> and{" "}
+                <code className="rt-code">fund()</code> only adds money. Opening a subscription again is the way back,
+                so the unattended part runs exactly as far as the funding does.
               </p>
             </li>
           </ol>

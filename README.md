@@ -206,6 +206,7 @@ purely on-chain. They join in exactly one place: `subscribeFor()`.
 | Self-renewal | Hedera Schedule Service (HIP-1215), system contract `0x16b` |
 | Chain | Hedera testnet — JSON-RPC via Hashio, artifacts re-verified against the public mirror node |
 | Chain client | ethers v6 |
+| Agent interface | OpenAPI 3.1 at [`/openapi.json`](https://retainer.edycu.dev/openapi.json), registered with Bazantic as a gateway and an MCP server |
 
 ### What is actually being sold
 
@@ -340,12 +341,72 @@ to trigger any of them:
 
 Gas used on testnet: `subscribe()` **1,582,554** (limit 2,000,000), deploy **968,564**.
 
+## 🔌 The API as MCP tools — and an agent that checks the claim
+
+`packages/nextjs/public/openapi.json` is served live at
+<https://retainer.edycu.dev/openapi.json>. It exists so the gate is callable by something that
+has never read this repository: registering that document with **Bazantic** produces an HTTP
+gateway and, from the same document, an MCP server. The tool descriptions an agent reads are
+this repo's own OpenAPI `description` strings, verbatim — the spec is the interface, and nothing
+is written twice.
+
+**Gateway 1 — `https://retainer-x402.bazgateway.com`**, registered from the live OpenAPI
+document and published to Bazantic's marketplace, where it currently sits in *pending
+verification*. It is priced per method, which is where the product's own asymmetry shows up
+again: `/api/retainer/access` costs 1000 millicents ($0.01) and `/api/retainer/status` is 0,
+because reading the chain is free and being served is not. Its generated MCP server exposes
+four tools — `getAccess`, `getStatus`, `info`, `externalDocs`.
+
+**Gateway 2 — `https://hedera-scheduled-proof.bazgateway.com`**, a one-endpoint slice of
+Hedera's Mirror Node REST API exposing two tools, `findScheduledExecutions` and `info`. It is
+deliberately
+**not** published: the API behind it is Hedera's, not ours, and listing someone else's public
+API on a marketplace under our name is not ours to do.
+
+The reason to have both is the recipe that binds them. **"Verify self-renewing agent access on
+Hedera"** calls `getStatus` from the first gateway and `findScheduledExecutions` from the
+second: it reads the seller's own claim about a subscription, then goes to the ledger and
+checks whether the renewal that claim rests on was actually executed by Hedera's scheduler.
+That is the trust argument of this project run by a machine instead of a reader — the vendor
+asserts, the network confirms. Its saved run returned:
+
+```jsonc
+{
+  "verification_result": "verified",
+  "access_status": true,
+  "scheduled_renewals_found": 8
+}
+```
+
+whose newest scheduled `CONTRACTCALL` at that moment was consensus `1788941916.005290514`. The
+count of 8 is what the tool saw in its window — it reads the ten newest transactions by default,
+not the contract's whole history.
+
+### The endpoint that structurally cannot see a self-renewal
+
+Building that recipe surfaced a finding worth carrying, because it can catch anyone auditing a
+HIP-1215 contract: **`/api/v1/contracts/{id}/results` does not return scheduled executions.** It
+lists calls that arrived as an `EthereumTransaction`, and a renewal the Schedule Service
+executes never was one. The scheduled renewal at consensus `1788940215.030907876` was absent from
+that endpoint's twenty newest results when this was measured on 2026-09-09, and is plainly
+present here as `CONTRACTCALL` with `scheduled: true`:
+
+```bash
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/transactions?account.id=0.0.10415845&transactiontype=CONTRACTCALL&order=desc" \
+  | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\(.scheduled)", .result] | @tsv'
+```
+
+The first version of the recipe queried the contract-results endpoint, reported that no
+scheduled renewals were found, and looked entirely correct while doing it — a verifier pointed
+at the one endpoint that cannot see the thing being verified. Read the account's transactions,
+not the contract's results.
+
 ## 📊 Engineering Rigor — gas economics, the honest part
 
-The third row above is the whole cost story, and it is the most interesting thing this build
-measured. A renewal that re-arms the next one costs **1.54896 HBAR**. A renewal that does not
-re-arm costs **0.0507 HBAR**. That is a **~30×** gap between two executions of the same
-function, and it means:
+The third row of the renewals table above is the whole cost story, and it is the most
+interesting thing this build measured. A renewal that re-arms the next one costs
+**1.54896 HBAR**. A renewal that does not re-arm costs **0.0507 HBAR**. That is a **~30×** gap
+between two executions of the same function, and it means:
 
 > Re-arming the next renewal — the `scheduleCall` into `0x16b` — is roughly **97%** of what a
 > renewal costs. The renewal's own bookkeeping is the cheap 0.05 HBAR part.
@@ -384,6 +445,23 @@ carrying its own reason string — `"balance will not cover the next period"`,
 `"network refused the schedule"`, or the defensive `"insufficient subscriber balance"` — and
 the first four are asserted by name in the test suite. A subscriber who cancels is a separate
 event, `Cancelled`: an ending they chose, not one that surprised them.
+
+What a lapse does **not** do is restart. Once `active` goes false the contract cannot re-arm
+itself, and the two obvious ways to try both fail:
+
+| Attempt | What actually happens |
+|---|---|
+| `renew(agent)` | reverts `NotSubscribed()` — the guard is the first line of the function. `eth_call` against `0x4330…a931` for a lapsed agent returns `0x237e6c28`, that error's selector |
+| `fund()` | credits the subscriber's balance and emits `Funded`. It arms nothing: `_armRenewal` is reached only from `_subscribe` and from a successful `renew` |
+
+The way back is to open a subscription again — `subscribe()`, or the `subscribeFor()` the
+resource server calls when the agent pays the next 402. So the unattended part of this product
+runs exactly as far as the money does: until the subscriber's balance or the seller's gas
+reserve runs dry, and no further. Nothing on-chain is holding a wake-up call after a lapse, so
+the restart has to come from outside — the agent paying again, or the seller topping up
+`fundGasReserve()`, which nothing in the contract does on its own. That boundary is easy to
+miss at the demo settings on the current deployment: 90-second periods against a reserve that
+holds back 2 ℏ per armed renewal, so a funded Retainer burns down in minutes rather than months.
 
 ## 🚀 Getting Started
 
@@ -583,6 +661,7 @@ packages/nextjs/
   services/retainer/server.ts           contract reads + forwarding settled payments
   services/x402/server.ts               x402 resource server, Blocky402 facilitator
   app/judge/page.tsx                    /judge — the 30-second read for one reader
+  public/openapi.json                   the OpenAPI 3.1 document the MCP tools are generated from
   test/units.property.test.ts           the unit boundary, 202,059 amounts
   scripts/retainer-agent.ts             the whole flow as an agent runs it
 

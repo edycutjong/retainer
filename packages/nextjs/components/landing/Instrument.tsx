@@ -51,7 +51,16 @@ function phaseForKey(k: Key): number {
   return k.i === RECORDED_RUN.length - 1 ? PHASES.length - 1 : (k.i + 1) * 3; // next fill, or closed
 }
 
-export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow; initialMode?: Mode }) {
+export function Instrument({
+  live,
+  initialMode = "replay",
+  fromArrival = false,
+}: {
+  live: LiveWindow;
+  initialMode?: Mode;
+  /** True while the only reason live data exists is the page's own arrival read — nobody asked. */
+  fromArrival?: boolean;
+}) {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [reduced, setReduced] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -68,6 +77,8 @@ export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow;
   const onScreen = useRef(true);
   const lastAnnounced = useRef<number>(-1);
   const stepFireTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Set the moment the visitor works a control. From then on the mode is theirs, not ours. */
+  const engaged = useRef(false);
 
   // Reduced motion decides autoplay once, at mount.
   useEffect(() => {
@@ -83,9 +94,18 @@ export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow;
   }, []);
 
   // An address, the demo agent or a wallet means the visitor wants the chain.
+  //
+  // With one exception, and it is the whole reason this is not a one-liner: the page also reads
+  // the demo agent on arrival, unasked, and that read lands a few hundred milliseconds late. If
+  // the window happens to be open it used to switch the mode out from under whoever was already
+  // working the replay — the controls unmount mid-click. Invisible for as long as the demo agent
+  // was lapsed, and a broken hero the day it was not. An unasked-for read never wins against a
+  // visitor who has taken hold of the instrument; anything they asked for still does.
   useEffect(() => {
-    if (live.valid) setMode("live");
-  }, [live.valid]);
+    if (!live.valid) return;
+    if (fromArrival && engaged.current) return;
+    setMode("live");
+  }, [live.valid, fromArrival]);
 
   // Pause when the instrument is off screen or the tab is hidden — the replay is not a CPU tax.
   useEffect(() => {
@@ -192,10 +212,12 @@ export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow;
   }, []);
 
   const step = () => {
+    engaged.current = true;
     setPlaying(false);
     showKey((stepIdx + 1) % KEYS.length);
   };
   const togglePlay = () => {
+    engaged.current = true;
     if (playing) {
       setPlaying(false);
       // Land on the nearest key so Step continues from here.
@@ -210,6 +232,7 @@ export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow;
   };
 
   const switchMode = (m: Mode) => {
+    engaged.current = true;
     setMode(m);
     setAnnounce(m === "replay" ? "Showing the recorded run." : "Showing the live chain.");
     if (m === "live" && !live.valid) setTimeout(() => inputRef.current?.focus(), 0);
@@ -460,7 +483,10 @@ export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow;
                 className="rt-input"
                 placeholder="0x… agent address"
                 value={live.agent}
-                onChange={e => live.setAgent(e.target.value)}
+                onChange={e => {
+                  engaged.current = true;
+                  live.setAgent(e.target.value);
+                }}
                 spellCheck={false}
                 autoComplete="off"
                 inputMode="text"
@@ -468,7 +494,10 @@ export function Instrument({ live, initialMode = "replay" }: { live: LiveWindow;
               <button
                 type="button"
                 className="rt-btn rt-btn--ghost whitespace-nowrap"
-                onClick={() => live.setAgent(DEMO_AGENT)}
+                onClick={() => {
+                  engaged.current = true;
+                  live.setAgent(DEMO_AGENT);
+                }}
               >
                 Watch the demo agent
               </button>

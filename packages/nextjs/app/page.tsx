@@ -38,6 +38,9 @@ const Home: NextPage = () => {
   const live = useLiveWindow();
   useReveal([live.valid, live.status !== null]);
   const checkedDemo = useRef(false);
+  // The address the arrival read put there on nobody's behalf. Anything the visitor asks for
+  // clears it, so the instrument can tell "the chain happened to be open" from "show me the chain".
+  const [arrivalAgent, setArrivalAgent] = useState<string | null>(null);
 
   // One read on arrival: if the demo agent's window is open on chain right now, the real thing
   // beats a replay, so the instrument starts live. If it is closed, the recorded run stays.
@@ -48,15 +51,23 @@ const Home: NextPage = () => {
     fetch(`/api/retainer/status?agent=${DEMO_AGENT}`, { cache: "no-store", signal: ctrl.signal })
       .then(r => (r.ok ? r.json() : null))
       .then(body => {
-        if (body?.hasAccess && !live.agent) live.setAgent(DEMO_AGENT);
+        if (body?.hasAccess && !live.agent) {
+          live.setAgent(DEMO_AGENT);
+          setArrivalAgent(DEMO_AGENT);
+        }
       })
       .catch(() => {});
     return () => ctrl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const askForLive = (agent: string) => {
+    setArrivalAgent(null);
+    live.setAgent(agent);
+  };
+
   const watchDemo = () => {
-    live.setAgent(DEMO_AGENT);
+    askForLive(DEMO_AGENT);
     if (window.innerWidth < 1024) {
       document.getElementById("instrument")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -91,7 +102,7 @@ const Home: NextPage = () => {
             </div>
           </div>
           <div className="order-3 lg:order-none mt-1 lg:mt-0 lg:col-span-6 xl:col-span-7 min-w-0 rt-enter rt-enter--2">
-            <Instrument live={live} />
+            <Instrument live={live} fromArrival={!!arrivalAgent && live.agent === arrivalAgent} />
           </div>
         </div>
       </section>
@@ -176,7 +187,7 @@ const Home: NextPage = () => {
               </p>
             </div>
             {!live.valid && (
-              <button type="button" className="rt-btn rt-btn--ghost" onClick={() => live.setAgent(DEMO_AGENT)}>
+              <button type="button" className="rt-btn rt-btn--ghost" onClick={() => askForLive(DEMO_AGENT)}>
                 Watch the demo agent
               </button>
             )}

@@ -106,6 +106,7 @@ const links: [string, string][] = [
   ["Repository", REPO],
   ["Contract on HashScan", `https://hashscan.io/testnet/contract/${CONTRACT_ID}`],
   ["On-chain proof, with re-verify commands", `${REPO}/blob/main/docs/proof.md`],
+  ["The OpenAPI document the MCP tools are generated from", `${BASE}/openapi.json`],
   ["What an unattended renewal costs", `${REPO}/blob/main/docs/gas-economics.md`],
   ["The unit trap, measured", `${REPO}/blob/main/docs/hedera-units.md`],
   ["Architecture", `${REPO}/blob/main/specs/architecture.md`],

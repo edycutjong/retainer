@@ -399,6 +399,88 @@ const Home: NextPage = () => {
         </div>
       </section>
 
+      {/* ── Machine-consumable: the OpenAPI, the gateways, the recipe */}
+      <section id="agents" className="rt-section" aria-labelledby="agents-title">
+        <div className="rt-container grid gap-10 lg:grid-cols-12">
+          <div className="lg:col-span-5 rt-reveal">
+            <p className="rt-eyebrow">Consumable by an agent</p>
+            <h2 id="agents-title" className="rt-h2 mt-3">
+              The same gate, as MCP tools.
+            </h2>
+            <p className="rt-prose mt-4">
+              The API publishes an OpenAPI 3.1 document at{" "}
+              <a className="rt-link" href="/openapi.json">
+                /openapi.json
+              </a>
+              . Registering it with Bazantic produces an HTTP gateway and, from the same document, an MCP server — the
+              tool descriptions an agent reads are that document&rsquo;s own{" "}
+              <code className="rt-code">description</code> strings, verbatim. The spec is the interface; nothing is
+              written twice.
+            </p>
+            <p className="rt-prose mt-4">
+              A second gateway wraps two endpoints of Hedera&rsquo;s Mirror Node as one tool,{" "}
+              <code className="rt-code">findScheduledExecutions</code>. It is deliberately unpublished: that API is
+              Hedera&rsquo;s, not ours.
+            </p>
+          </div>
+          <div className="lg:col-span-7 rt-reveal grid gap-4 sm:grid-cols-2">
+            <div className="rt-panel">
+              <h3 className="rt-h3">Four tools, from the spec</h3>
+              <p className="rt-small mt-2" style={{ color: "var(--rt-text-mid)" }}>
+                <span className="rt-mono">getAccess</span> · <span className="rt-mono">getStatus</span> ·{" "}
+                <span className="rt-mono">info</span> · <span className="rt-mono">externalDocs</span>, priced per
+                method: the paid call at 1000 millicents, the chain read at 0. The same asymmetry the contract has.
+              </p>
+              <p className="rt-small mt-3" style={{ color: "var(--rt-text-low)" }}>
+                The gateway is published to Bazantic&rsquo;s marketplace at{" "}
+                <span className="rt-mono">retainer-x402.bazgateway.com</span>, currently pending verification.
+              </p>
+            </div>
+            <div className="rt-panel">
+              <h3 className="rt-h3">A recipe that checks the claim</h3>
+              <p className="rt-small mt-2" style={{ color: "var(--rt-text-mid)" }}>
+                It reads the seller&rsquo;s own <span className="rt-mono">getStatus</span>, then asks Hedera whether the
+                renewal that claim rests on was executed. The vendor asserts; the network confirms.
+              </p>
+              <p className="rt-mono-ui mt-3" style={{ color: "var(--rt-text-low)" }}>
+                verification_result <span className="rt-renewed-text">verified</span> · access_status true ·
+                scheduled_renewals_found 8 ·{" "}
+                <a
+                  className="rt-link rt-mono"
+                  href={`${HASHSCAN}/transaction/1788941916.005290514`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  1788941916.005290514
+                </a>
+              </p>
+            </div>
+            <div className="rt-panel sm:col-span-2">
+              <h3 className="rt-h3">The endpoint that cannot see a self-renewal</h3>
+              <p className="rt-small mt-2" style={{ color: "var(--rt-text-mid)" }}>
+                Building it surfaced a finding worth carrying:{" "}
+                <code className="rt-code">/api/v1/contracts/&#123;id&#125;/results</code> does not return scheduled
+                executions — it lists calls that arrived as an <code className="rt-code">EthereumTransaction</code>, and
+                a renewal the Schedule Service executes never was one. The scheduled renewal at{" "}
+                <a
+                  className="rt-link rt-mono"
+                  href={`${HASHSCAN}/transaction/1788940215.030907876`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  1788940215.030907876
+                </a>{" "}
+                is absent from that endpoint&rsquo;s twenty newest results and plainly present under{" "}
+                <code className="rt-code">/api/v1/transactions?account.id={CURRENT_CONTRACT.id}</code> as{" "}
+                <code className="rt-code">CONTRACTCALL</code> with <code className="rt-code">scheduled: true</code>. The
+                first version of the recipe queried it, reported none found, and looked entirely correct while doing it.
+                Read the account&rsquo;s transactions, not the contract&rsquo;s results.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Questions */}
       <section id="questions" className="rt-section" aria-labelledby="q-title">
         <div className="rt-container grid gap-10 lg:grid-cols-12">

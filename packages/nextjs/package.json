@@ -12,6 +12,8 @@
     "lint": "next lint",
     "serve": "next start",
     "start": "next dev",
+    "hcs:create-topic": "tsx scripts/hcs-create-topic.ts",
+    "verify:audit-trail": "tsx scripts/verify-audit-trail.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

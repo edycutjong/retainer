@@ -20,6 +20,7 @@ Hedera Schedule Service extends by itself.</p>
 [![Built for ETHOnline 2026](https://img.shields.io/badge/ETHGlobal-ETHOnline_2026-1f6feb?style=for-the-badge)](https://ethglobal.com/events/ethonline2026)
 [![For judges](https://img.shields.io/badge/⚖️_For-Judges-f59e0b?style=for-the-badge)](https://retainer.edycu.dev/judge)
 [![Pitch deck](https://img.shields.io/badge/📊_Pitch-Deck-8259ef?style=for-the-badge)](https://retainer.edycu.dev/pitch-deck.html)
+[![Benchmarks](https://img.shields.io/badge/📈_Measured-Numbers-10b981?style=for-the-badge)](DEMO.md)
 
 <br/>
 
@@ -464,6 +465,32 @@ the restart has to come from outside — the agent paying again, or the seller t
 miss at the demo settings on the current deployment: 90-second periods against a reserve that
 holds back 2 ℏ per armed renewal, so a funded Retainer burns down in minutes rather than months.
 
+## 📐 Reproduce the numbers
+
+```bash
+yarn bench
+```
+
+No `.env`, no keys, no local chain, no fixture — the defaults point at the live deployment and
+the public Hedera mirror node, and there is no flag that makes it stop talking to either. It
+prints n / min / p50 / p95 / max / mean for three scenarios and exits nonzero if any assertion
+fails.
+
+The one worth reading is the third. `RenewalScheduled(agent, schedule, firesAt)` records the
+exact second the contract asked the Schedule Service to call it back; the `scheduled=true`
+CONTRACTCALL on the contract's account records when Hedera actually did. The difference is
+drift, and it is produced by Hedera, recorded by Hedera, and read back from Hedera with nothing
+of ours in between:
+
+> Across **30 of 30** renewals this deployment has ever armed, the network executed the call a
+> median of **64 ms** — p95 **151 ms** — after the second it was asked for. Never early, never
+> later than 248 ms.
+
+[`DEMO.md`](DEMO.md) has the full table, the environment, the honest caveats, and a receipt from
+one real end-to-end run: 3.00000000 ℏ paid through x402, **zero** on-chain transactions signed
+by the agent, and a second unattended renewal that fired 38 seconds *after* the script had
+already exited.
+
 ## 🚀 Getting Started
 
 No Docker, no object storage, no self-hosted facilitator. Settlement uses the hosted Blocky402
@@ -665,11 +692,13 @@ packages/nextjs/
   public/openapi.json                   the OpenAPI 3.1 document the MCP tools are generated from
   test/units.property.test.ts           the unit boundary, 202,059 amounts
   scripts/retainer-agent.ts             the whole flow as an agent runs it
+  scripts/bench.ts                      the benchmark behind DEMO.md
 
 e2e/                                    Playwright: the gate must fail closed
 JUDGE.md                                what /judge says, for whoever arrives from GitHub
 specs/                                  architecture and provenance
 prompts/                                the prompts that directed the build
+DEMO.md                                 the measured numbers, and one real receipt
 docs/proof.md                           every on-chain artifact, and how to re-verify it
 docs/gas-economics.md                   what an unattended renewal actually costs
 docs/hedera-units.md                    the weibar/tinybar trap, and the probe that settled it

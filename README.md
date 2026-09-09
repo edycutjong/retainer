@@ -21,6 +21,7 @@ Hedera Schedule Service extends by itself.</p>
 [![For judges](https://img.shields.io/badge/⚖️_For-Judges-f59e0b?style=for-the-badge)](https://retainer.edycu.dev/judge)
 [![Pitch deck](https://img.shields.io/badge/📊_Pitch-Deck-8259ef?style=for-the-badge)](https://retainer.edycu.dev/pitch-deck.html)
 [![Benchmarks](https://img.shields.io/badge/📈_Measured-Numbers-10b981?style=for-the-badge)](DEMO.md)
+[![Bazantic gateway](https://img.shields.io/badge/🔌_Bazantic-x402_Gateway-e11d48?style=for-the-badge)](https://retainer-x402.bazgateway.com/api/retainer/status?agent=0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66)
 
 <br/>
 

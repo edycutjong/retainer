@@ -257,7 +257,7 @@ yarn next:test        # 10 unit tests, 202,059 amounts across the unit boundary`
 
       <h2>Honest limitations</h2>
 
-      <p>Three real ones. None of them is fixed here.</p>
+      <p>Four real ones. None of them is fixed here.</p>
 
       <ol className={styles.list}>
         <li>
@@ -287,6 +287,18 @@ yarn next:test        # 10 unit tests, 202,059 amounts across the unit boundary`
           count that reservation; the fix needs a redeploy and is not made here. Three deployments exist —{" "}
           <code>0.0.10406083</code>, <code>0.0.10414167</code>, <code>{CONTRACT_ID}</code> — and{" "}
           <a href={`${REPO}/blob/main/docs/proof.md`}>docs/proof.md</a> keeps them apart.
+        </li>
+        <li>
+          <strong>A lapsed subscription cannot restart itself.</strong> Lapsing is loud — every ending carries a{" "}
+          <code>Lapsed</code> event with a reason string — but once <code>active</code> is false the contract will not
+          re-arm. <code>renew(agent)</code> reverts <code>NotSubscribed()</code> (an <code>eth_call</code> against the
+          live contract for a lapsed agent returns <code>0x237e6c28</code>, that error&rsquo;s selector) and{" "}
+          <code>fund()</code> only credits the subscriber&rsquo;s balance; neither schedules anything. Opening a
+          subscription again is the only way back — <code>subscribe()</code>, or the <code>subscribeFor()</code> the
+          server calls when the agent pays the next 402. So the unattended part runs exactly as far as the money does:
+          until the subscriber&rsquo;s balance or the seller&rsquo;s gas reserve runs dry, and then someone outside has
+          to send a transaction. At the demo settings — 90-second periods, 2 ℏ held back per armed renewal — that is
+          minutes, not months.
         </li>
       </ol>
 

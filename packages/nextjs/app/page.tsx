@@ -445,6 +445,8 @@ const Home: NextPage = () => {
                 <code className="rt-code">Lapsed(&quot;balance will not cover the next period&quot;)</code> and does not
                 re-arm. The last row of each ledger above is that event — 0.0507 ℏ on the recorded run, 0.0522 ℏ on the
                 current deployment — with no <code className="rt-code">SCHEDULECREATE</code> after it. Loud, not silent.
+                It does not restart itself either: from there <code className="rt-code">renew()</code> reverts{" "}
+                <code className="rt-code">NotSubscribed()</code>, and opening a subscription again is the way back.
               </div>
             </details>
             <details>
@@ -467,10 +469,10 @@ const Home: NextPage = () => {
           <div className="lg:col-span-4 rt-reveal">
             <p className="rt-eyebrow">What this does not claim</p>
             <h2 id="limits-title" className="rt-h2 mt-3">
-              Three real limitations. None is fixed here.
+              Four real limitations. None is fixed here.
             </h2>
           </div>
-          <ol className="lg:col-span-8 grid gap-4 sm:grid-cols-3 list-none m-0 p-0 rt-reveal">
+          <ol className="lg:col-span-8 grid gap-4 sm:grid-cols-2 list-none m-0 p-0 rt-reveal">
             <li className="rt-panel">
               <p className="rt-mono-ui rt-eyebrow--expiring" style={{ color: "var(--rt-expiring-ink)" }}>
                 01
@@ -504,6 +506,18 @@ const Home: NextPage = () => {
                 the network fired <code className="rt-code">renew()</code> and the contract&rsquo;s own{" "}
                 <code className="rt-code">Insolvent()</code> guard rejected it; the run had to be restarted by hand. The
                 numbers point at the gas Hedera reserves on the payer during a scheduled call. Not fixed here.
+              </p>
+            </li>
+            <li className="rt-panel">
+              <p className="rt-mono-ui" style={{ color: "var(--rt-expiring-ink)" }}>
+                04
+              </p>
+              <h3 className="rt-h3 mt-2">A lapse cannot restart itself.</h3>
+              <p className="rt-small mt-2" style={{ color: "var(--rt-text-mid)" }}>
+                Once <code className="rt-code">active</code> is false the contract will not re-arm:{" "}
+                <code className="rt-code">renew()</code> reverts <code className="rt-code">NotSubscribed()</code> and{" "}
+                <code className="rt-code">fund()</code> only adds money. Opening a subscription again is the way back,
+                so the unattended part runs exactly as far as the funding does.
               </p>
             </li>
           </ol>

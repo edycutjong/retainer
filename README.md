@@ -385,6 +385,23 @@ carrying its own reason string — `"balance will not cover the next period"`,
 the first four are asserted by name in the test suite. A subscriber who cancels is a separate
 event, `Cancelled`: an ending they chose, not one that surprised them.
 
+What a lapse does **not** do is restart. Once `active` goes false the contract cannot re-arm
+itself, and the two obvious ways to try both fail:
+
+| Attempt | What actually happens |
+|---|---|
+| `renew(agent)` | reverts `NotSubscribed()` — the guard is the first line of the function. `eth_call` against `0x4330…a931` for a lapsed agent returns `0x237e6c28`, that error's selector |
+| `fund()` | credits the subscriber's balance and emits `Funded`. It arms nothing: `_armRenewal` is reached only from `_subscribe` and from a successful `renew` |
+
+The way back is to open a subscription again — `subscribe()`, or the `subscribeFor()` the
+resource server calls when the agent pays the next 402. So the unattended part of this product
+runs exactly as far as the money does: until the subscriber's balance or the seller's gas
+reserve runs dry, and no further. Nothing on-chain is holding a wake-up call after a lapse, so
+the restart has to come from outside — the agent paying again, or the seller topping up
+`fundGasReserve()`, which nothing in the contract does on its own. That boundary is easy to
+miss at the demo settings on the current deployment: 90-second periods against a reserve that
+holds back 2 ℏ per armed renewal, so a funded Retainer burns down in minutes rather than months.
+
 ## 🚀 Getting Started
 
 No Docker, no object storage, no self-hosted facilitator. Settlement uses the hosted Blocky402

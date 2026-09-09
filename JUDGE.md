@@ -117,7 +117,7 @@ Hedera on every request; if the chain is unreachable the route fails rather than
 
 ## Honest limitations
 
-Three real ones. None of them is fixed here.
+Four real ones. None of them is fixed here.
 
 1. **At the default price, Retainer loses money on every renewal.** A renewal burns ~1.55 HBAR
    of the seller's gas reserve to collect 1 HBAR of revenue. That is not a bug in the code — it
@@ -142,6 +142,16 @@ Three real ones. None of them is fixed here.
    reservation; the fix needs a redeploy and is not made here. Three deployments exist —
    `0.0.10406083`, `0.0.10414167`, `0.0.10415845` — and [`docs/proof.md`](docs/proof.md) keeps
    them apart.
+4. **A lapsed subscription cannot restart itself.** Lapsing is loud — every ending carries a
+   `Lapsed` event with a reason string — but once `active` is false the contract will not re-arm.
+   `renew(agent)` reverts `NotSubscribed()` (an `eth_call` against the live contract for a lapsed
+   agent returns `0x237e6c28`, that error's selector) and `fund()` only credits the subscriber's
+   balance; neither schedules anything. Opening a subscription again is the only way back —
+   `subscribe()`, or the `subscribeFor()` the server calls when the agent pays the next 402. So
+   the unattended part runs exactly as far as the money does: until the subscriber's balance or
+   the seller's gas reserve runs dry, and then someone outside has to send a transaction. At the
+   demo settings — 90-second periods, 2 ℏ held back per armed renewal — that is minutes, not
+   months.
 
 Also true: not audited, testnet only, and `RENEWAL_COST_ESTIMATE` is an explicit estimate — a
 contract cannot know a future network fee.

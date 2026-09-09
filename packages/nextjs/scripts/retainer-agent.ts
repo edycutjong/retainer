@@ -97,7 +97,18 @@ async function main() {
   console.log("\n2) paying via x402 — settled by Blocky402");
   const privateKey = PrivateKey.fromStringECDSA(buyerKey);
   const signer = createClientHederaSigner(cred("BUYER_ACCOUNT_ID"), privateKey, { network: NETWORK });
-  const client = new x402Client().register(NETWORK, new ExactHederaScheme(signer));
+  // @x402/core 2.25 enforces spend controls before any policy: only assets its own
+  // `findDefaultAsset` recognises are payable, and native HBAR on Hedera is not one of
+  // them. The challenge asks for asset "0.0.0" (HBAR), so the default client rejects it
+  // before it ever signs. Allow that one asset explicitly, with a cap — disabling spend
+  // controls entirely (`spendControls: false`) would also work and is worse: an agent
+  // that pays unattended should keep a ceiling.
+  const client = x402Client.fromConfig({
+    schemes: [{ network: NETWORK, client: new ExactHederaScheme(signer) }],
+    spendControls: {
+      allowedAssets: [{ network: NETWORK, asset: "0.0.0", maxAmountPerPayment: "1000000000" }],
+    },
+  });
   const http = new x402HTTPClient(client);
 
   const challenge = await first

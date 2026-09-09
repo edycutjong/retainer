@@ -182,7 +182,7 @@ contract cannot know a future network fee.
 | **Contract on HashScan** | [`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845) |
 | **On-chain proof, with re-verify commands** | [`docs/proof.md`](docs/proof.md) |
 | **Payment audit trail on HCS** | topic [`0.0.10440194`](https://hashscan.io/testnet/topic/0.0.10440194) · [`README.md`](README.md#-verifiable-payment-audit-trail-on-hcs) · `yarn verify:audit-trail` |
-| **The API as MCP tools, and an agent that checks the claim** | [`README.md`](README.md#-the-api-as-mcp-tools--and-an-agent-that-checks-the-claim) · the spec itself at <https://retainer.edycu.dev/openapi.json> |
+| **The API as MCP tools, via Bazantic — and the recipe that checks the claim** | Gateway + MCP server generated from the spec: [`README.md`](README.md#-the-api-as-mcp-tools--and-an-agent-that-checks-the-claim) · the spec itself at <https://retainer.edycu.dev/openapi.json> |
 | **What an unattended renewal costs** | [`docs/gas-economics.md`](docs/gas-economics.md) |
 | **The unit trap, measured** | [`docs/hedera-units.md`](docs/hedera-units.md) |
 | **Architecture** | [`specs/architecture.md`](specs/architecture.md) |

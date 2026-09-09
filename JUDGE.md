@@ -73,8 +73,8 @@ Hedera mirror node — the exact `curl` commands are in [`docs/proof.md`](docs/p
 | **→ what that ~30× gap proves** | re-arming — the `scheduleCall` into `0x16b` — is **~97%** of what a renewal costs, on both deployments |
 | **Gas used, `subscribe()` on testnet** | 1,582,554 (limit 2,000,000) |
 | **Gas used, deploy** | 968,564 |
-| **Contract tests** | **46 passing** — `yarn hardhat:test` |
-| **Resource-server unit tests** | **10 passing** — `yarn next:test` |
+| **Contract tests** | **64 passing** — `yarn hardhat:test` |
+| **Resource-server unit tests** | **239 passing** — `yarn next:test` |
 | **Amounts checked across the unit boundary** | **202,059**, three invariants each = 606,177 assertions |
 | **Hedera Schedule Service methods used** | 3, all load-bearing: `scheduleCall`, `hasScheduleCapacity`, `deleteSchedule` |
 
@@ -106,8 +106,8 @@ against `MockScheduleService.sol`, because a Hardhat node has no system contract
 proves the contract logic, not the network behaviour, and it is never the demo:
 
 ```bash
-yarn hardhat:test     # 46 contract tests
-yarn next:test        # 10 unit tests, 202,059 amounts across the unit boundary
+yarn hardhat:test     # 64 contract tests
+yarn next:test        # 239 unit tests, 202,059 amounts across the unit boundary
 ```
 
 There is no offline, mock or demo mode for the product itself. The gate reads `hasAccess()` on

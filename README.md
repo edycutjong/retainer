@@ -576,7 +576,7 @@ regression guard for the tinybar/weibar bug.
 yarn hardhat:test
 ```
 
-**46 passing** in `packages/hardhat/test/RetainerAccess.test.ts`, grouped by the thing each
+**64 passing** in `packages/hardhat/test/RetainerAccess.test.ts`, grouped by the thing each
 group protects: tinybar/weibar unit handling, the seller — not the subscriber — setting the
 price, x402 settlement crediting the on-chain subscription, the `renew()` time gate that
 closes the griefing vector, what the contract actually asks the scheduler to do, separation of
@@ -593,7 +593,7 @@ balance without funding a period. Each claim is listed next to its test in
 [`.github/SECURITY.md`](.github/SECURITY.md).
 
 ```bash
-yarn next:test        # 10 unit tests, the resource server's arithmetic
+yarn next:test        # 239 unit tests, the resource server's arithmetic
 ```
 
 The sharpest edge in this project — Hedera's weibar/tinybar boundary, whose failure mode is a
@@ -623,8 +623,8 @@ an explicit switch to the live chain, no autoplay under reduced motion, no sidew
 
 | Layer | Tool | Where |
 |---|---|---|
-| Contract tests | Hardhat + Mocha, 46 passing | `.github/workflows/lint.yaml` |
-| Unit tests | Vitest + fast-check, 10 passing, 202,059 amounts | `.github/workflows/lint.yaml` |
+| Contract tests | Hardhat + Mocha, 64 passing | `.github/workflows/lint.yaml` |
+| Unit tests | Vitest + fast-check, 239 passing, 202,059 amounts | `.github/workflows/lint.yaml` |
 | E2E | Playwright, 56 checks, desktop + mobile | `.github/workflows/e2e.yaml` |
 | Types + lint | `tsc --noEmit` and ESLint, both workspaces | `.github/workflows/lint.yaml` |
 | SAST | CodeQL — TypeScript **and** the Actions workflows | `.github/workflows/codeql.yaml` |
@@ -652,7 +652,7 @@ packages/hardhat/
   contracts/test/UnitProbe.sol          the tinybar/weibar measurement, run on testnet
   deploy/01_deploy_retainer_access.ts   deploys, then funds the gas reserve
   scripts/proveRenewal.ts               subscribe, send nothing, watch it renew
-  test/RetainerAccess.test.ts           46 tests
+  test/RetainerAccess.test.ts           64 tests
 
 packages/nextjs/
   app/api/retainer/access/route.ts      the x402 gate: 402, settle, subscribeFor

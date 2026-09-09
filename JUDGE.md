@@ -50,6 +50,20 @@ served from a database, and nothing is made to look alive.
     | jq -r '.transactions[] | [.consensus_timestamp, .name, "scheduled=\(.scheduled)", .result, "fee=\(.charged_tx_fee)"] | @tsv'
   ```
 
+**3b — read the payment audit trail.** Every settled payment is written to a public **Hedera
+Consensus Service** topic, [`0.0.10440194`](https://hashscan.io/testnet/topic/0.0.10440194) —
+immutable (no admin key), appendable only by the seller's account:
+
+```bash
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10440194/messages?order=asc" \
+  | jq -r '.messages[] | "\(.sequence_number) \(.consensus_timestamp) \(.message | @base64d)"'
+```
+
+Each record names the x402 settlement id and, for the subscription it opened, the `subscribeFor`
+transaction — so one identifier walks you from the off-chain payment to the on-chain access it
+bought. `yarn verify:audit-trail` resolves every one of those identifiers on the mirror node and
+exits non-zero if any of them does not check out. It needs no keys.
+
 **4 — open the live view.** <https://retainer.edycu.dev> — paste an agent address and
 watch the window count down and then jump back up on its own. Every number on it is a chain
 read via `/api/retainer/status`.
@@ -167,6 +181,7 @@ contract cannot know a future network fee.
 | **Repository** | <https://github.com/edycutjong/retainer> |
 | **Contract on HashScan** | [`0.0.10415845`](https://hashscan.io/testnet/contract/0.0.10415845) |
 | **On-chain proof, with re-verify commands** | [`docs/proof.md`](docs/proof.md) |
+| **Payment audit trail on HCS** | topic [`0.0.10440194`](https://hashscan.io/testnet/topic/0.0.10440194) · [`README.md`](README.md#-verifiable-payment-audit-trail-on-hcs) · `yarn verify:audit-trail` |
 | **The API as MCP tools, and an agent that checks the claim** | [`README.md`](README.md#-the-api-as-mcp-tools--and-an-agent-that-checks-the-claim) · the spec itself at <https://retainer.edycu.dev/openapi.json> |
 | **What an unattended renewal costs** | [`docs/gas-economics.md`](docs/gas-economics.md) |
 | **The unit trap, measured** | [`docs/hedera-units.md`](docs/hedera-units.md) |

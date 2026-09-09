@@ -276,6 +276,44 @@ bookkeeping is the 0.05 HBAR part.
 
 ---
 
+## Artifact 7 — the payment audit trail on HCS
+
+- **Topic** [`0.0.10440194`](https://hashscan.io/testnet/topic/0.0.10440194) · created at
+  consensus `1788962445.497065104`
+- **Memo** `Retainer x402 payment audit trail | retainer.edycu.dev`
+- **Admin key** `null` — the topic can never be updated or deleted, by anyone, including us
+- **Submit key** `ECDSA_SECP256K1`, the seller account `0.0.10402910` — only it can append
+- **Messages** 4, from two real paid requests through the live gate on 2026-09-09
+
+| Seq | Consensus | Event | Settlement |
+|---|---|---|---|
+| 1 | `1788962638.913214511` | `payment.settled` | `0.0.7162784@1788962625.048553106` |
+| 2 | `1788962638.915568407` | `subscription.opened`, `subscribeFor` `0x72acc577…de1319` at [`1788962634.749890619`](https://hashscan.io/testnet/transaction/1788962634.749890619) | `0.0.7162784@1788962625.048553106` |
+| 3 | `1788962964.258637896` | `subscription.opened`, `subscribeFor` `0x37afa072…32eb72` at [`1788962958.304056104`](https://hashscan.io/testnet/transaction/1788962958.304056104) | `0.0.7162784@1788962945.717898779` |
+| 4 | `1788962964.413170104` | `payment.settled` | `0.0.7162784@1788962945.717898779` |
+
+**Proves the two rails can be joined by a stranger.** The settlement id on each record resolves
+to a `CRYPTOTRANSFER` `SUCCESS` on the mirror node, and each `subscriptionTx` resolves to a
+`SUCCESS` `CONTRACTCALL` to `0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931` — the contract the
+record itself names. Nothing has to be taken on trust; `yarn verify:audit-trail` performs exactly
+those lookups and exits non-zero on any mismatch.
+
+Note sequence 3 and 4: the second request's `subscription.opened` reached consensus *before* its
+own `payment.settled`. The two records are submitted independently — deliberately, so a stuck
+payment write cannot suppress the subscription write — so consensus may order them either way.
+The join is the settlement id, never the sequence number.
+
+```bash
+# what the topic says
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10440194/messages?order=asc" \
+  | jq -r '.messages[] | "\(.sequence_number) \(.consensus_timestamp) \(.message | @base64d)"'
+
+# that it cannot be rewritten: admin_key is null
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10440194" | jq '{memo, admin_key, submit_key}'
+```
+
+---
+
 ## What this run cost, stated plainly
 
 | | |

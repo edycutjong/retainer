@@ -343,6 +343,109 @@ to trigger any of them:
 
 Gas used on testnet: `subscribe()` **1,582,554** (limit 2,000,000), deploy **968,564**.
 
+## 🧾 Verifiable payment audit trail on HCS
+
+A settled x402 payment and the `subscribeFor` call it pays for are two unrelated transactions on
+the ledger: a `CRYPTOTRANSFER` to the seller, and, seconds later, a `CONTRACTCALL`. Nothing on
+Hedera ties them together. A buyer's accountant reading the chain sees both and has to take the
+seller's word that the second happened *because of* the first.
+
+So the resource server publishes the join, as a message on a public **Hedera Consensus Service**
+topic — ordered and timestamped by consensus, not by us.
+
+**Topic [`0.0.10440194`](https://hashscan.io/testnet/topic/0.0.10440194)** · memo
+`Retainer x402 payment audit trail | retainer.edycu.dev`
+
+| Property | Value | Why it is that way |
+|---|---|---|
+| **Admin key** | **absent** | The topic can never be updated or deleted — not by a stranger, and not by us. An append-only record its author can erase is not evidence. |
+| **Submit key** | the seller's account, `0.0.10402910` | Only the account that receives the payments can append, so a message here is provably the seller's own record and not something a passer-by wrote. |
+| **Message size** | one record, never chunked | One message id is exactly one event. A chunked record would make "the trail" depend on reassembly. |
+
+### What is on it
+
+Two records per paid request, sharing the settlement id — that shared id is the whole point,
+because it walks a reader from the off-chain payment to the on-chain access it bought:
+
+```jsonc
+// sequence 1
+{"v":1,"event":"payment.settled","network":"hedera:testnet","resource":"/api/retainer/access",
+ "agent":"0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66",
+ "settlement":"0.0.7162784@1788962625.048553106","amountTinybar":"300000000","asset":"HBAR",
+ "facilitator":"api.testnet.blocky402.com","payer":"0.0.10403066","at":1788962632}
+
+// sequence 2 — same settlement id, now naming what it bought
+{"v":1,"event":"subscription.opened","network":"hedera:testnet","resource":"/api/retainer/access",
+ "agent":"0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66",
+ "settlement":"0.0.7162784@1788962625.048553106","amountTinybar":"300000000",
+ "contract":"0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931",
+ "subscriptionTx":"0x72acc577365657cafab6f5f7ca5fa12e80387376aa421b397c4b04f4e3de1319",
+ "periods":3,"at":1788962638}
+```
+
+A forward that *fails* is recorded too, as `subscription.failed` with the reason. An audit trail
+that only logs successes is a record of the seller's best days, not its books.
+
+### Check it yourself — no keys, no clone
+
+Raw, from the public mirror node:
+
+```bash
+curl -s "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10440194/messages?order=asc" \
+  | jq -r '.messages[] | "\(.sequence_number) \(.consensus_timestamp) \(.message | @base64d)"'
+```
+
+Or have the claims checked *against the chain they describe*:
+
+```bash
+git clone https://github.com/edycutjong/retainer.git && cd retainer && yarn install
+yarn verify:audit-trail
+```
+
+It takes no credentials, reads no local state and never talks to Retainer's own server. For
+every record it resolves the settlement id on the mirror node (must be a `SUCCESS` transfer) and,
+for an opened subscription, the `subscribeFor` hash (must be a `SUCCESS` contract call, to the
+contract the record names). Any mismatch exits non-zero. At the time of writing:
+
+```
+memo    Retainer x402 payment audit trail | retainer.edycu.dev
+admin   none — immutable
+submit  ECDSA_SECP256K1 — append is restricted
+...
+4 message(s), 2 settled payment(s), 0 failed check(s)
+```
+
+### It cannot break a payment, by construction
+
+The trail is bolted onto the money path, which is the most dangerous place in this codebase to
+add anything. Three things keep it harmless:
+
+- **It runs after the response.** Both writes go through Next's `after()`, so they execute once
+  the agent already has its answer.
+- **`submitAuditEvent` never rejects.** An unset topic, an unfunded operator, HCS unreachable —
+  every one resolves as `{ ok: false }` and is logged. A service whose payments fail when its own
+  bookkeeping fails would be a worse product than one with no bookkeeping at all.
+- **It is off unless configured.** With `HCS_AUDIT_TOPIC_ID` unset the writer is a no-op and the
+  paid path is byte-identical. It borrows the seller account that already signs on-chain
+  forwards, so enabling it is one variable, not a second key to manage.
+
+19 unit tests cover exactly that — the interesting cases are all the failures
+(`packages/nextjs/test/audit.hcs.test.ts`).
+
+### Two honest notes
+
+- **The two records of one request can land in either order.** They are submitted independently,
+  and the second run on this topic put `subscription.opened` at sequence 3 and its own
+  `payment.settled` at 4. That independence is deliberate — a stuck payment record must not stop
+  the subscription record — so the join is the settlement id, never the sequence number, and
+  `verify-audit-trail.ts` decodes the whole topic before checking any link. A single forward pass
+  would have called a perfectly good trail broken.
+- **The record is the seller's claim.** HCS makes it timestamped, ordered and impossible to
+  retract; it does not make it true. What makes it checkable is that every claim names a
+  transaction anyone can look up — which is why the verifier ships with it, and why the topic has
+  no admin key. Metered calls are *not* on the trail: this is a payment trail, and one HCS message
+  per served call would charge the seller for narrating its own log.
+
 ## 🔌 The API as MCP tools — and an agent that checks the claim
 
 `packages/nextjs/public/openapi.json` is served live at
@@ -688,6 +791,9 @@ packages/nextjs/
   components/landing/                   the instrument: recorded run (from docs/proof.md) + live chain
   services/retainer/server.ts           contract reads + forwarding settled payments
   services/x402/server.ts               x402 resource server, Blocky402 facilitator
+  services/audit/hcs.ts                 the HCS payment audit trail, and why it cannot fail a payment
+  scripts/hcs-create-topic.ts           creates the topic: submit key, no admin key
+  scripts/verify-audit-trail.ts         checks the trail against the chain, with no credentials
   app/judge/page.tsx                    /judge — the 30-second read for one reader
   public/openapi.json                   the OpenAPI 3.1 document the MCP tools are generated from
   test/units.property.test.ts           the unit boundary, 202,059 amounts

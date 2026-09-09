@@ -183,8 +183,8 @@ type DriftResult = {
   armed: number;
   unexecuted: number;
   scheduledExecutions: number;
-  failedExecutions: number;
-  pairs: { firesAt: number; executedAt: number; drift: number }[];
+  revertedExecutions: number;
+  pairs: { firesAt: number; executedAt: number; drift: number; ok: boolean }[];
 };
 
 /**
@@ -200,6 +200,12 @@ type DriftResult = {
  * `/contracts/{id}/results` omits scheduled executions altogether (both verified against this
  * deployment). The endpoints that do see them are the log stream and the account's transaction
  * list, so those are the two used here.
+ *
+ * A reverted execution still counts as a sample. The question this metric answers is whether
+ * the *network* showed up on time, and it did whether or not the contract then liked what it
+ * found; dropping the reverted one would quietly flatter the number by hiding a call that
+ * arrived. What the revert means for the contract is a separate matter, and it is written up
+ * in `docs/gas-economics.md`.
  */
 async function measureDrift(): Promise<DriftResult> {
   const logs = await mirrorAll<MirrorLog>(`/api/v1/contracts/${CONTRACT_ID}/results/logs?limit=100&order=asc`, "logs");
@@ -218,19 +224,18 @@ async function measureDrift(): Promise<DriftResult> {
     .map(t => ({ at: Number(t.consensus_timestamp), ok: t.result === "SUCCESS" }))
     .sort((a, b) => a.at - b.at);
 
-  const succeeded = executions.filter(e => e.ok);
   const used = new Set<number>();
   const pairs: DriftResult["pairs"] = [];
   let unexecuted = 0;
 
   for (const firesAt of armedAt) {
-    const match = succeeded.find(e => !used.has(e.at) && e.at >= firesAt && e.at - firesAt < PAIR_WINDOW_SECONDS);
+    const match = executions.find(e => !used.has(e.at) && e.at >= firesAt && e.at - firesAt < PAIR_WINDOW_SECONDS);
     if (!match) {
       unexecuted++;
       continue;
     }
     used.add(match.at);
-    pairs.push({ firesAt, executedAt: match.at, drift: match.at - firesAt });
+    pairs.push({ firesAt, executedAt: match.at, drift: match.at - firesAt, ok: match.ok });
   }
 
   return {
@@ -238,7 +243,7 @@ async function measureDrift(): Promise<DriftResult> {
     armed: armedAt.length,
     unexecuted,
     scheduledExecutions: executions.length,
-    failedExecutions: executions.length - succeeded.length,
+    revertedExecutions: executions.filter(e => !e.ok).length,
     pairs,
   };
 }
@@ -351,13 +356,9 @@ async function main() {
   const drift = await measureDrift();
   console.log(
     `  ${drift.armed} renewals armed · ${drift.scheduledExecutions} scheduled executions on the contract` +
-      ` (${drift.failedExecutions} failed) · ${drift.samples.length} paired`,
+      ` · ${drift.samples.length} paired · ${drift.revertedExecutions} reverted (counted, not dropped)`,
   );
-  if (drift.unexecuted > 0) {
-    console.log(
-      `  ${drift.unexecuted} armed renewal(s) produced no successful scheduled execution — reported, not dropped.`,
-    );
-  }
+  check("every armed renewal was executed by the network", drift.unexecuted === 0, `unexecuted=${drift.unexecuted}`);
   check("enough executed renewals to describe a tail", drift.samples.length >= 10, `n=${drift.samples.length}`);
   check(
     "no renewal executed before the second it was armed for",
@@ -383,7 +384,10 @@ async function main() {
     const last = drift.pairs.slice(-5);
     console.log("last 5 unattended renewals (armed second -> consensus timestamp):");
     for (const p of last) {
-      console.log(`  ${p.firesAt} -> ${p.executedAt.toFixed(9)}  (+${(p.drift * 1000).toFixed(0)} ms)`);
+      console.log(
+        `  ${p.firesAt} -> ${p.executedAt.toFixed(9)}  (+${(p.drift * 1000).toFixed(0)} ms)` +
+          (p.ok ? "" : "  [reverted]"),
+      );
     }
     console.log("");
   }

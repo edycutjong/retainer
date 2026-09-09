@@ -71,7 +71,15 @@ jobs:
       # The repo we do not need is dropped, and one retry covers an ordinary transient.
       - name: Install Playwright browsers
         run: |
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          # The list file is not always named google-chrome.list (the image has used deb822
+          # `.sources` too), so match on the host rather than guessing the filename. Only files
+          # under sources.list.d are removed; the main sources.list is edited line-wise, never
+          # deleted, because apt needs it.
+          for f in $(grep -rl 'dl\.google\.com' /etc/apt/sources.list.d 2>/dev/null || true); do
+            echo "removing unused apt source: $f"
+            sudo rm -f "$f"
+          done
+          sudo sed -i '/dl\.google\.com/d' /etc/apt/sources.list || true
           yarn playwright install --with-deps chromium && exit 0
           echo "::warning::first browser install failed — retrying once"
           sleep 30

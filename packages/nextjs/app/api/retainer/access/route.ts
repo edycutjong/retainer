@@ -6,7 +6,7 @@ import {
 } from "@x402/core/http";
 import type { PaymentRequirements, ResourceInfo } from "@x402/core/types";
 import { getAddress, isAddress } from "viem";
-import { AUDIT_SCHEMA_VERSION, fitFailureRecord, submitAuditEvent } from "~~/services/audit/hcs";
+import { AUDIT_SCHEMA_VERSION, type AuditRecord, fitFailureRecord, submitAuditEvent } from "~~/services/audit/hcs";
 import { getQuote } from "~~/services/feed/hedera";
 import {
   RetainerNotDeployedError,
@@ -53,6 +53,25 @@ export const maxDuration = 60;
  * Settlement goes through the hosted Blocky402 facilitator (`FACILITATOR_URL`), which is what
  * the Hedera track requires; the payment itself is a native Hedera `TransferTransaction`.
  */
+
+/**
+ * Publish one audit record without letting it near the response.
+ *
+ * `after()` is the right primitive — it runs the work once the response is on the wire — but it
+ * throws when there is no request scope, which is exactly the situation in a unit test that calls
+ * this route handler directly. Throwing there would mean the audit trail had broken the payment
+ * path in the one place we can most easily check that it does not, so the fallback runs the write
+ * detached instead. `submitAuditEvent` never rejects, so neither branch can produce an unhandled
+ * rejection.
+ */
+function publishAudit(record: AuditRecord): void {
+  const write = () => submitAuditEvent(record);
+  try {
+    after(write);
+  } catch {
+    void write();
+  }
+}
 
 /** Where subscription payments go. The seller's Hedera account. */
 const PAY_TO = process.env.RETAINER_PAY_TO ?? "";
@@ -266,21 +285,19 @@ export async function GET(req: Request) {
   const amountTinybar = (periodPriceTinybar() * periodsPerPurchase()).toString();
   const settlementId = settlement.transaction ?? "unknown";
   const observedAt = Math.floor(Date.now() / 1000);
-  after(() =>
-    submitAuditEvent({
-      v: AUDIT_SCHEMA_VERSION,
-      event: "payment.settled",
-      network: settlement.network ?? X402_NETWORK,
-      resource: url.pathname,
-      agent,
-      settlement: settlementId,
-      amountTinybar,
-      asset: "HBAR",
-      facilitator: new URL(FACILITATOR_URL).host,
-      payer: settlement.payer,
-      at: observedAt,
-    }),
-  );
+  publishAudit({
+    v: AUDIT_SCHEMA_VERSION,
+    event: "payment.settled",
+    network: settlement.network ?? X402_NETWORK,
+    resource: url.pathname,
+    agent,
+    settlement: settlementId,
+    amountTinybar,
+    asset: "HBAR",
+    facilitator: new URL(FACILITATOR_URL).host,
+    payer: settlement.payer,
+    at: observedAt,
+  });
 
   // ── Turn the settled payment into on-chain subscription state.
   //
@@ -304,35 +321,33 @@ export async function GET(req: Request) {
   // settlement id to the on-chain access it bought. A failure is recorded too — an audit trail
   // that only logs successes records the seller's best days, not its books.
   const contractAddress = getRetainerAddress() ?? "unknown";
-  after(() =>
-    submitAuditEvent(
-      subscriptionTx
-        ? {
-            v: AUDIT_SCHEMA_VERSION,
-            event: "subscription.opened",
-            network: X402_NETWORK,
-            resource: url.pathname,
-            agent,
-            settlement: settlementId,
-            amountTinybar,
-            contract: contractAddress,
-            subscriptionTx,
-            periods: Number(periodsPerPurchase()),
-            at: Math.floor(Date.now() / 1000),
-          }
-        : fitFailureRecord({
-            v: AUDIT_SCHEMA_VERSION,
-            event: "subscription.failed",
-            network: X402_NETWORK,
-            resource: url.pathname,
-            agent,
-            settlement: settlementId,
-            amountTinybar,
-            contract: contractAddress,
-            error: subscriptionError ?? "unknown",
-            at: Math.floor(Date.now() / 1000),
-          }),
-    ),
+  publishAudit(
+    subscriptionTx
+      ? {
+          v: AUDIT_SCHEMA_VERSION,
+          event: "subscription.opened",
+          network: X402_NETWORK,
+          resource: url.pathname,
+          agent,
+          settlement: settlementId,
+          amountTinybar,
+          contract: contractAddress,
+          subscriptionTx,
+          periods: Number(periodsPerPurchase()),
+          at: Math.floor(Date.now() / 1000),
+        }
+      : fitFailureRecord({
+          v: AUDIT_SCHEMA_VERSION,
+          event: "subscription.failed",
+          network: X402_NETWORK,
+          resource: url.pathname,
+          agent,
+          settlement: settlementId,
+          amountTinybar,
+          contract: contractAddress,
+          error: subscriptionError ?? "unknown",
+          at: Math.floor(Date.now() / 1000),
+        }),
   );
 
   const res = NextResponse.json({

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type MockInstance, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReveal } from "~~/components/landing/useReveal";
 
 /**
@@ -96,7 +96,9 @@ const only = () => {
   return FakeObserver.instances[0];
 };
 
-let addEventListenerSpy: ReturnType<typeof vi.spyOn>;
+// Typed to the spied signature, not bare ReturnType<typeof vi.spyOn>: Vitest 4 defaults that
+// generic to a catch-all procedure, which makes `mock.calls` any[][] and trips noImplicitAny.
+let addEventListenerSpy: MockInstance<typeof window.addEventListener>;
 
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

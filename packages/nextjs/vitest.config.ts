@@ -14,10 +14,13 @@ export default defineConfig({
   resolve: {
     alias: { "~~": path.resolve(__dirname, ".") },
   },
-  // Vitest 4 hands .tsx to esbuild, and this workspace's tsconfig sets `jsx: "preserve"` for
-  // Next.js — which esbuild cannot parse. Ring.test.ts imports a component, so say explicitly
-  // which JSX runtime to use rather than letting the tsconfig decide. Harmless under Vitest 3.
+  // This workspace's tsconfig sets `jsx: "preserve"` because Next.js requires it, and Vite reads
+  // that setting for its own transform — leaving JSX untouched, so Ring.test.ts (the one suite
+  // that imports a component) fails import analysis. Name the runtime explicitly instead of
+  // letting the tsconfig decide. Both keys are needed and neither is redundant: Vite 7 and below
+  // transform with esbuild, Vite 8 (Vitest 4) switched to Oxc and ignores the esbuild key.
   esbuild: { jsx: "automatic" },
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     include: ["test/**/*.test.ts"],
     environment: "node",

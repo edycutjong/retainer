@@ -1,0 +1,148 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Retainer — an x402-gated resource whose access renews itself",
+    "version": "1.0.10",
+    "summary": "Pay once. The Hedera Schedule Service keeps the access window open.",
+    "description": "Retainer is a metered data feed on Hedera testnet, gated with x402 and settled through the Blocky402 facilitator.\n\nWhat makes it different from an ordinary x402 resource: the ordinary pattern charges on **every** request — 402, sign, retry, pay, repeat. Retainer charges once. That single payment is forwarded on-chain into the RetainerAccess contract (0.0.10415845), which opens a subscription and arms a scheduled call through HIP-1215, the Hedera schedule system contract at 0x16b. When the access window closes, the network itself calls `renew()` on the contract. No user, no cron, no second signature.\n\nSo an agent's flow is:\n\n1. `GET /api/retainer/access?agent=<evm address>` with no subscription → **402** with an x402 challenge.\n2. Pay it once (scheme `exact`, network `hedera:testnet`, native HBAR). Retry with the `PAYMENT-SIGNATURE` header → **200**, and the subscription is opened on-chain.\n3. Call again inside the window → **200** with `paidThisRequest: false`. Nothing is signed and nothing is charged.\n4. Call again *after* the window would have expired → still **200**, because the contract renewed itself.\n\n`/api/retainer/status` is a free, unauthenticated chain read for polling that state without touching the payment path.",
+    "contact": { "name": "Retainer", "url": "https://retainer.edycu.dev/judge" },
+    "license": { "name": "MIT", "identifier": "MIT" }
+  },
+  "servers": [{ "url": "https://retainer.edycu.dev", "description": "Live deployment, Hedera testnet" }],
+  "externalDocs": { "description": "For judges — the claim, the commands that prove it, and the limitations", "url": "https://retainer.edycu.dev/judge" },
+  "tags": [
+    { "name": "access", "description": "The paid resource. x402-gated; the first call costs, later calls inside the window do not." },
+    { "name": "status", "description": "Free chain reads. No payment, no key, no side effects." }
+  ],
+  "paths": {
+    "/api/retainer/access": {
+      "get": {
+        "tags": ["access"],
+        "operationId": "getAccess",
+        "summary": "Request the gated resource",
+        "description": "Returns the resource when the agent holds an open on-chain subscription, and a 402 x402 challenge when it does not.\n\nThe agent pays **once**. After that, calls inside the window return 200 with `paidThisRequest: false`, and calls after the window would have expired also return 200 — the Hedera Schedule Service renewed it with nobody awake.",
+        "parameters": [{
+          "name": "agent", "in": "query", "required": true,
+          "description": "The agent's EVM address. This is the identity the subscription is held against.",
+          "schema": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$", "examples": ["0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66"] }
+        }],
+        "responses": {
+          "200": {
+            "description": "Access granted. Either the subscription was already open, or it was opened by the payment on this request.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccessGranted" } } }
+          },
+          "402": {
+            "description": "Payment required. The body is a standard x402 challenge and is emitted verbatim in the `PAYMENT-REQUIRED` header, so an ordinary x402 client can parse either.",
+            "headers": { "PAYMENT-REQUIRED": { "description": "The same challenge, base64 for x402 clients.", "schema": { "type": "string" } } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } } }
+          },
+          "400": { "description": "`agent` was missing or is not an EVM address. Nothing was read from the chain.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "description": "The metered quota for this period is exhausted. It resets when the window renews.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "502": { "description": "An upstream read or the payment facilitator was unavailable.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "503": { "description": "RetainerAccess is not deployed on the target network.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/retainer/status": {
+      "get": {
+        "tags": ["status"],
+        "operationId": "getStatus",
+        "summary": "Read the subscription state from the chain",
+        "description": "A free, side-effect-free chain read. Every number here comes from the contract, not from a database — there is no database. Safe to poll; it never touches the payment path and never returns 402.",
+        "parameters": [{
+          "name": "agent", "in": "query", "required": true,
+          "description": "The agent's EVM address.",
+          "schema": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$", "examples": ["0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66"] }
+        }],
+        "responses": {
+          "200": { "description": "The subscription as the contract currently sees it.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Status" } } } },
+          "400": { "description": "`agent` was missing or malformed. The chain was not read.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "502": { "description": "The contract read failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "503": { "description": "RetainerAccess is not deployed on the target network.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccessGranted": {
+        "type": "object",
+        "required": ["access", "paidThisRequest", "subscription"],
+        "properties": {
+          "access": { "type": "string", "const": "granted" },
+          "paidThisRequest": { "type": "boolean", "description": "False whenever the open window served the call. This is the point of the product." },
+          "why": { "type": "string", "description": "Plain-language reason the call was served." },
+          "subscription": { "$ref": "#/components/schemas/Subscription" },
+          "metering": {
+            "type": "object",
+            "description": "Usage is counted on-chain. The renewal that extends the window also refills this.",
+            "properties": {
+              "callsRemainingThisPeriod": { "type": "integer" },
+              "recordedOnChain": { "type": "string", "description": "Transaction hash of the on-chain usage record." },
+              "why": { "type": "string" }
+            }
+          },
+          "resource": { "description": "The paid payload itself." }
+        }
+      },
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "expiresAt": { "type": "integer", "description": "Unix seconds at which the window closes." },
+          "secondsRemaining": { "type": "integer", "minimum": 0 },
+          "periodSeconds": { "type": "integer", "description": "Length of one funded period." },
+          "balanceTinybar": { "type": "string", "description": "Refundable balance, in tinybar (1 HBAR = 1e8 tinybar). A string because it exceeds a safe integer." },
+          "active": { "type": "boolean" },
+          "nextRenewalSchedule": { "type": "string", "description": "Address of the pending scheduled call. The zero address means no renewal is armed." }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "properties": {
+          "agent": { "type": "string" },
+          "contract": { "type": "string", "description": "The RetainerAccess contract this answer was read from." },
+          "hasAccess": { "type": "boolean", "description": "The gate's own question, answered from the state the contract uses." },
+          "expiresAt": { "type": "integer" },
+          "secondsRemaining": { "type": "integer", "minimum": 0 },
+          "periodSeconds": { "type": "integer" },
+          "pricePerPeriodTinybar": { "type": "string" },
+          "balanceTinybar": { "type": "string" },
+          "periodsFunded": { "type": "integer", "description": "How many more times this subscription can renew before the money runs out." },
+          "active": { "type": "boolean" },
+          "nextRenewalSchedule": { "type": "string", "description": "Non-zero means the network is holding a renewal for this agent." },
+          "renewalsReserveCanArm": { "type": ["integer", "null"], "description": "How many further renewals the seller's gas reserve can arm, for anyone. Null when that read did not answer." },
+          "usage": { "type": ["object", "null"], "description": "Metered usage this period. The renewal resets it. Null when that read did not answer." },
+          "unavailable": { "description": "Auxiliary reads the chain did not answer on this poll. The window above is unaffected." },
+          "now": { "type": "integer", "description": "Server time in unix seconds, so a caller can check the arithmetic." }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "A standard x402 challenge. Scheme `exact`, network `hedera:testnet`, native HBAR, settled through the Blocky402 facilitator.",
+        "properties": {
+          "x402Version": { "type": "integer", "examples": [2] },
+          "error": { "type": "string" },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": { "type": "string", "examples": ["exact"] },
+                "network": { "type": "string", "examples": ["hedera:testnet"] },
+                "payTo": { "type": "string" },
+                "price": {
+                  "type": "object",
+                  "properties": {
+                    "asset": { "type": "string", "description": "Native HBAR." },
+                    "amount": { "type": "string", "description": "Amount in tinybar for the whole purchase." }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error": { "type": "object", "required": ["error"], "properties": { "error": { "type": "string" } } }
+    }
+  }
+}

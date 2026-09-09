@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 import { version } from "../package.json";
 
 /**
@@ -12,6 +12,50 @@ import { version } from "../package.json";
  */
 
 const CLAIM = "renews itself";
+
+/**
+ * The status the page reads on arrival, stubbed.
+ *
+ * The landing page asks the chain once, unprompted, whether the demo agent's window is open, and
+ * behaves differently depending on the answer. Left unstubbed that makes these tests a function of
+ * what testnet happens to be doing at the minute they run — which is exactly how a green suite went
+ * red the moment the demo was restarted, with no code change between the two runs. So the answer is
+ * supplied here, both ways round, and the chain gets to decide nothing.
+ */
+const statusBody = (open: boolean) => ({
+  agent: "0xD14CA86A1483e9b2147a7B86fB74D437d3d2Cc66",
+  contract: "0x433050c9bd203FBdd49FAB6b5E20eD3E1FB2a931",
+  hasAccess: open,
+  expiresAt: open ? Math.floor(Date.now() / 1000) + 1800 : 0,
+  secondsRemaining: open ? 1800 : 0,
+  periodSeconds: open ? 3600 : 0,
+  pricePerPeriodTinybar: "100000000",
+  balanceTinybar: open ? "17600000000" : "0",
+  periodsFunded: open ? 176 : 0,
+  active: open,
+  nextRenewalSchedule: open
+    ? "0x00000000000000000000000000000000009F56b5"
+    : "0x0000000000000000000000000000000000000000",
+  renewalsReserveCanArm: open ? 176 : 0,
+  usage: { used: 0, allowance: 5, remaining: open ? 5 : 0 },
+  unavailable: [],
+  now: Math.floor(Date.now() / 1000),
+});
+
+/** Answer every status read with `open`, after `delayMs`. Resolves the count of reads served. */
+async function stubStatus(page: Page, open: boolean, delayMs = 0) {
+  const served = { count: 0 };
+  await page.route("**/api/retainer/status**", async route => {
+    if (delayMs) await new Promise(r => setTimeout(r, delayMs));
+    served.count += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(statusBody(open)),
+    });
+  });
+  return served;
+}
 
 test.describe("/ — the landing page a cold visitor gets", () => {
   test("carries exactly one h1 with the claim, and the instrument above the fold", async ({
@@ -39,6 +83,9 @@ test.describe("/ — the landing page a cold visitor gets", () => {
   }) => {
     await page.goto("/");
     const instrument = page.getByTestId("instrument");
+    // Ask for the recorded run rather than assuming it is what a cold visitor gets: when the demo
+    // agent's window is open on chain, the page legitimately opens on the live tab instead.
+    await instrument.getByRole("tab", { name: "Recorded run" }).click();
     await expect(instrument).toHaveAttribute("data-mode", "replay");
     await expect(
       instrument.getByText(/REPLAY · 2026-09-07 · 0\.0\.10406083/),
@@ -79,6 +126,7 @@ test.describe("/ — the landing page a cold visitor gets", () => {
   }) => {
     const context = await browser.newContext({ reducedMotion: "reduce" });
     const page = await context.newPage();
+    await stubStatus(page, false);
     await page.goto("/");
     const play = page
       .getByTestId("instrument")
@@ -100,6 +148,43 @@ test.describe("/ — the landing page a cold visitor gets", () => {
       overflow,
       `document scrolls ${overflow}px sideways`,
     ).toBeLessThanOrEqual(1);
+  });
+
+  test("opens on the live chain when the demo agent's window is open and nobody has touched it", async ({
+    page,
+  }) => {
+    await stubStatus(page, true);
+    await page.goto("/");
+    const instrument = page.getByTestId("instrument");
+    await expect(instrument).toHaveAttribute("data-mode", "live");
+  });
+
+  /**
+   * The regression this file exists to prevent from recurring.
+   *
+   * The arrival read lands a few hundred milliseconds after paint. While the demo agent was lapsed
+   * it answered "closed" and changed nothing, so nothing here ever ran against the other branch.
+   * Once the demo was restarted the same read started switching the instrument to live *after* a
+   * visitor had begun working the replay — the controls unmounted under a click already in flight
+   * (`element is not stable`). The suite caught it, on a branch that touched no UI code at all.
+   */
+  test("a late arrival read never pulls the mode away from a visitor already working the replay", async ({
+    page,
+  }) => {
+    const served = await stubStatus(page, true, 1200);
+    await page.goto("/");
+    const instrument = page.getByTestId("instrument");
+
+    // Take hold of the instrument before the read can land.
+    await instrument.getByRole("tab", { name: "Recorded run" }).click();
+    await expect(instrument).toHaveAttribute("data-mode", "replay");
+
+    // Now let it land — and keep landing, because the live window polls.
+    await expect.poll(() => served.count, { timeout: 15_000 }).toBeGreaterThan(0);
+    await expect(instrument).toHaveAttribute("data-mode", "replay");
+    await expect(
+      instrument.getByRole("button", { name: /Pause|Play/ }),
+    ).toBeVisible();
   });
 
   test("has the landmarks and the version stamp a real page has", async ({

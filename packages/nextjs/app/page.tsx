@@ -620,6 +620,10 @@ const Home: NextPage = () => {
             <Link href="/judge" className="rt-btn rt-btn--primary">
               Open /judge
             </Link>
+            {/* Static file in public/, so a plain anchor — Next's Link would route it client-side. */}
+            <a href="/pitch-deck.html" target="_blank" rel="noreferrer" className="rt-btn rt-btn--ghost">
+              View the pitch deck
+            </a>
             <a href={REPO} target="_blank" rel="noreferrer" className="rt-btn rt-btn--ghost">
               Read the repository
             </a>

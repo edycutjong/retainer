@@ -55,7 +55,8 @@
     "release:patch": "node scripts/release.mjs patch",
     "release:next": "node scripts/next-version.mjs --explain",
     "security-scan": "yarn audit || true",
-    "test": "yarn hardhat:test && yarn next:test"
+    "test": "yarn hardhat:test && yarn next:test",
+    "verify:audit-trail": "yarn workspace @retainer/nextjs verify:audit-trail"
   },
   "packageManager": "yarn@3.2.3",
   "devDependencies": {

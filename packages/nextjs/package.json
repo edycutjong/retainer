@@ -43,7 +43,7 @@
     "crypto-browserify": "^3.12.1",
     "daisyui": "^5.7.28",
     "ethers": "^6.17.0",
-    "next": "^15.2.8",
+    "next": "^15.5.27",
     "next-nprogress-bar": "^2.3.13",
     "next-themes": "^0.4.6",
     "process": "^0.11.10",
